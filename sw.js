@@ -1,6 +1,4 @@
-importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
-
-const CACHE_NAME = 'animapp-v38';
+const CACHE_NAME = 'animapp-v39';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
