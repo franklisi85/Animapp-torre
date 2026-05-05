@@ -10,17 +10,20 @@ exports.handler = async (event) => {
         return { statusCode: 400, body: 'Invalid JSON' };
     }
 
-    const { title, message, senderEmail } = body;
+    const { title, message, senderEmail, view } = body;
     if (!title || !message) {
         return { statusCode: 400, body: 'Missing title or message' };
     }
+
+    const baseUrl = 'https://torreserenalogistic26.netlify.app';
+    const targetUrl = view ? `${baseUrl}?view=${view}` : baseUrl;
 
     const payload = {
         app_id: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
         included_segments: ['All'],
         contents: { it: message, en: message },
         headings: { it: title, en: title },
-        url: 'https://torreserenalogistic26.netlify.app',
+        url: targetUrl,
         // Non notifica il mittente stesso
         filters: senderEmail ? [
             { field: 'tag', key: 'email', relation: '!=', value: senderEmail }

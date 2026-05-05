@@ -274,12 +274,12 @@ function initOneSignal(email, name, role) {
     });
 }
 
-async function sendPushNotification(title, message, senderEmail) {
+async function sendPushNotification(title, message, senderEmail, view) {
     try {
         await fetch('/.netlify/functions/notify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, message, senderEmail })
+            body: JSON.stringify({ title, message, senderEmail, view })
         });
     } catch (e) {
         // notifica non critica, ignora errori silenziosamente
@@ -2650,6 +2650,8 @@ function init() {
     renderStaff();
     renderDashboard();
     updateNotificationsBadge();
+    initChat();
+    handleViewFromUrl();
 
     // Dashboard card navigation
     const statEvents = document.getElementById('stat-events-today');
@@ -4020,6 +4022,17 @@ function markChatSeen() {
     setAppBadge(0);
 }
 
+function handleViewFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view');
+    if (!view) return;
+    window.history.replaceState({}, '', '/');
+    setTimeout(() => {
+        const navItem = document.querySelector(`.nav-links li[data-view="${view}"]`);
+        if (navItem) navItem.click();
+    }, 600);
+}
+
 function setAppBadge(count) {
     if (!navigator.setAppBadge) return;
     if (count > 0) {
@@ -4038,7 +4051,7 @@ window.sendChatMessage = function() {
     const email  = localStorage.getItem('logistic_torre_email') || '';
     const role   = localStorage.getItem('logistic_torre_role') || currentRole || 'animatore';
     db.ref('chatMessages').push({ text, author, email, role, timestamp: Date.now() });
-    sendPushNotification(`💬 ${author}`, text, email);
+    sendPushNotification(`💬 ${author}`, text, email, 'chat');
     input.value = '';
     input.focus();
 }
