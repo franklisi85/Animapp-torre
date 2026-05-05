@@ -3,7 +3,8 @@ exports.handler = async (event) => {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
-    const apiKey = process.env.ONESIGNAL_API_KEY || 'os_v2_app_tvpwbj5wqzgplgfw4bcpovjghriorr2sbelutwuiuqkmju5mnsltzwfkpeuknxuoylrgsxvzqc2uomddnhfet5uuv5gf73223f7hixq';
+    const apiKey = process.env.ONESIGNAL_API_KEY;
+    if (!apiKey) return { statusCode: 500, body: 'API key not configured' };
 
     let body;
     try { body = JSON.parse(event.body); } catch {
