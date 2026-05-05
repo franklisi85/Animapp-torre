@@ -755,6 +755,8 @@ db.ref('appData').on('value', (snapshot) => {
         updateBlockRequestsBtn();
         ['dashboard','inventory','staff','events'].forEach(renderPageNote);
         if (currentRole === 'admin') renderRegisteredUsers();
+        renderChatInputBar();
+        if (currentRole === 'admin') renderChatPermissionsPanel();
 
         // Web Share Target: apri modal richiesta rapida se arriva un link condiviso
         if (window._sharedUrl && localStorage.getItem('logistic_torre_auth') === 'true') {
@@ -4033,17 +4035,24 @@ function markChatSeen() {
 }
 
 function handleViewFromUrl() {
-    // Controlla URL param (?view=chat)
-    const params = new URLSearchParams(window.location.search);
-    let view = params.get('view');
-    if (view) window.history.replaceState({}, '', '/');
-
-    // Controlla localStorage (backup per quando l'app era in background)
+    // Controlla hash (#view=chat) — più affidabile con PWA e OneSignal
+    let view = null;
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#view=')) {
+        view = hash.replace('#view=', '');
+        window.history.replaceState({}, '', '/');
+    }
+    // Controlla URL param (?view=chat) come fallback
+    if (!view) {
+        const params = new URLSearchParams(window.location.search);
+        view = params.get('view');
+        if (view) window.history.replaceState({}, '', '/');
+    }
+    // Controlla localStorage come ultimo fallback
     if (!view) {
         view = localStorage.getItem('pending_nav_view');
         if (view) localStorage.removeItem('pending_nav_view');
     }
-
     if (!view) return;
     setTimeout(() => navigateTo(view), 1000);
 }
@@ -4057,14 +4066,42 @@ if (navigator.serviceWorker) {
     });
 }
 
-// Quando l'app torna in primo piano controlla se c'è una navigazione pendente
+// Hash change (notifica apre app con #view=chat) — Android + iOS background
+window.addEventListener('hashchange', () => {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#view=')) {
+        const view = hash.replace('#view=', '');
+        window.history.replaceState({}, '', '/');
+        setTimeout(() => navigateTo(view), 300);
+    }
+});
+
+// App torna in primo piano — controlla hash + localStorage (iOS + Android)
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-        const view = localStorage.getItem('pending_nav_view');
-        if (view) {
-            localStorage.removeItem('pending_nav_view');
-            setTimeout(() => navigateTo(view), 400);
-        }
+    if (document.hidden) return;
+    // Controlla hash aggiornato
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#view=')) {
+        const view = hash.replace('#view=', '');
+        window.history.replaceState({}, '', '/');
+        setTimeout(() => navigateTo(view), 300);
+        return;
+    }
+    // Controlla localStorage
+    const view = localStorage.getItem('pending_nav_view');
+    if (view) {
+        localStorage.removeItem('pending_nav_view');
+        setTimeout(() => navigateTo(view), 400);
+    }
+});
+
+// Fallback: focus della finestra (alcuni browser iOS usano questo invece di visibilitychange)
+window.addEventListener('focus', () => {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#view=')) {
+        const view = hash.replace('#view=', '');
+        window.history.replaceState({}, '', '/');
+        setTimeout(() => navigateTo(view), 300);
     }
 });
 

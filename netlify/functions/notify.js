@@ -16,7 +16,7 @@ exports.handler = async (event) => {
     }
 
     const baseUrl = 'https://torreserenalogistic26.netlify.app';
-    const targetUrl = view ? `${baseUrl}?view=${view}` : baseUrl;
+    const targetUrl = view ? `${baseUrl}/#view=${view}` : baseUrl;
 
     const payload = {
         app_id: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
