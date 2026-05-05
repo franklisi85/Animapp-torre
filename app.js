@@ -275,6 +275,7 @@ function initOneSignal(email, name, role) {
 }
 
 function showNotifBanner() {
+    if (localStorage.getItem('logistic_torre_auth') !== 'true') return;
     if (document.getElementById('notif-activation-banner')) return;
     const banner = document.createElement('div');
     banner.id = 'notif-activation-banner';
