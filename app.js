@@ -268,7 +268,10 @@ function initOneSignal(email, name, role) {
             OneSignal.User.addTag('role', role);
         }
         const isSubscribed = await OneSignal.User.PushSubscription.optedIn;
-        if (!isSubscribed) {
+        if (isSubscribed) {
+            // Rinnova silenziosamente la sottoscrizione se è scaduta/rotta
+            try { await OneSignal.User.PushSubscription.optIn(); } catch(e) {}
+        } else {
             setTimeout(() => OneSignal.Slidedown.promptPush(), 3000);
         }
         OneSignal.Notifications.addEventListener('click', (event) => {
@@ -662,6 +665,26 @@ window.submitAdminLogin = function() {
 }
 
 // Global Logout Logic
+const btnResubscribe = document.getElementById('btn-resubscribe');
+if (btnResubscribe) {
+    btnResubscribe.addEventListener('click', async () => {
+        try {
+            window.OneSignalDeferred = window.OneSignalDeferred || [];
+            OneSignalDeferred.push(async function(OneSignal) {
+                const isSubscribed = await OneSignal.User.PushSubscription.optedIn;
+                if (isSubscribed) {
+                    await OneSignal.User.PushSubscription.optIn();
+                    showToast('Notifiche riattivate!', 'success');
+                } else {
+                    await OneSignal.Slidedown.promptPush();
+                }
+            });
+        } catch(e) {
+            showToast('Vai in Impostazioni del telefono e riattiva le notifiche per questa app.', 'error');
+        }
+    });
+}
+
 const btnGlobalLogout = document.getElementById('btn-global-logout');
 if (btnGlobalLogout) {
     btnGlobalLogout.addEventListener('click', () => {
