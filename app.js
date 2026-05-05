@@ -294,10 +294,7 @@ async function sendPushNotification(title, message, senderEmail, view) {
             contents: { it: message, en: message },
             headings: { it: title, en: title },
             url: targetUrl,
-            data: view ? { view } : undefined,
-            filters: senderEmail ? [
-                { field: 'tag', key: 'email', relation: '!=', value: senderEmail }
-            ] : undefined
+            data: view ? { view } : undefined
         };
         await fetch('https://api.onesignal.com/notifications', {
             method: 'POST',
