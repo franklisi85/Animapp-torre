@@ -272,6 +272,7 @@ function initOneSignal(email, name, role) {
             if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
         } else {
             if (btn) { btn.style.color = '#f59e0b'; btn.title = 'Tocca per attivare le notifiche'; }
+            setTimeout(showNotifPrompt, 2000);
         }
         OneSignal.Notifications.addEventListener('click', (event) => {
             const view = event?.notification?.additionalData?.view;
@@ -283,20 +284,33 @@ function initOneSignal(email, name, role) {
     });
 }
 
-function showNotifBanner() {
-    if (localStorage.getItem('logistic_torre_auth') !== 'true') return;
-    if (document.getElementById('notif-activation-banner')) return;
-    const banner = document.createElement('div');
-    banner.id = 'notif-activation-banner';
-    banner.innerHTML = `
-        <span class="material-symbols-outlined" style="font-size:20px;">notifications_off</span>
-        <span style="flex:1">Attiva le notifiche per ricevere messaggi e avvisi del team</span>
-        <button onclick="activateNotifications()" style="background:white;color:#1e293b;border:none;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;font-size:0.85rem;">Attiva</button>
-        <button onclick="document.getElementById('notif-activation-banner').remove()" style="background:none;border:none;color:white;cursor:pointer;padding:4px 8px;font-size:18px;">✕</button>
+function showNotifPrompt() {
+    if (sessionStorage.getItem('notif_prompt_shown')) return;
+    if (document.getElementById('notif-prompt-modal')) return;
+    sessionStorage.setItem('notif_prompt_shown', '1');
+    const modal = document.createElement('div');
+    modal.id = 'notif-prompt-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.innerHTML = `
+        <div style="background:white;border-radius:18px;padding:28px 24px;max-width:320px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.25);">
+            <span class="material-symbols-outlined" style="font-size:52px;color:#f59e0b;">notifications_active</span>
+            <h3 style="margin:12px 0 8px;font-size:1.1rem;color:#1e293b;font-weight:700;">Attiva le notifiche</h3>
+            <p style="color:#64748b;font-size:0.88rem;margin-bottom:22px;line-height:1.5;">Ricevi in tempo reale messaggi chat, avvisi e ordini di servizio dal team.</p>
+            <button onclick="window._confirmNotifPrompt()" style="width:100%;background:#f59e0b;color:white;border:none;border-radius:10px;padding:13px;font-size:1rem;font-weight:700;cursor:pointer;margin-bottom:10px;">🔔 Attiva notifiche</button>
+            <button onclick="window._dismissNotifPrompt()" style="width:100%;background:none;color:#94a3b8;border:none;padding:8px;font-size:0.88rem;cursor:pointer;">Adesso no</button>
+        </div>
     `;
-    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#f59e0b;color:white;display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:0.88rem;box-shadow:0 -2px 10px rgba(0,0,0,0.2);';
-    document.body.appendChild(banner);
+    document.body.appendChild(modal);
 }
+window._confirmNotifPrompt = async function() {
+    const modal = document.getElementById('notif-prompt-modal');
+    if (modal) modal.remove();
+    await window.activateNotifications();
+};
+window._dismissNotifPrompt = function() {
+    const modal = document.getElementById('notif-prompt-modal');
+    if (modal) modal.remove();
+};
 
 window.activateNotifications = async function() {
     const OneSignal = window.OneSignal;
