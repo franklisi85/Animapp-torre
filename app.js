@@ -263,8 +263,11 @@ function initOneSignal(email, name, role) {
             OneSignal.User.addTag('role', role);
         }
         const isSubscribed = await OneSignal.User.PushSubscription.optedIn;
+        const hasPermission = OneSignal.Notifications.permission;
         const btn = document.getElementById('btn-resubscribe');
         if (isSubscribed) {
+            if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
+        } else if (hasPermission) {
             try { await OneSignal.User.PushSubscription.optIn(); } catch(e) {}
             if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
         } else {
@@ -296,25 +299,23 @@ function showNotifBanner() {
 }
 
 window.activateNotifications = async function() {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(async function(OneSignal) {
-        try {
-            await OneSignal.Notifications.requestPermission();
-            const granted = OneSignal.Notifications.permission;
-            if (granted === true || granted === 'granted') {
-                await OneSignal.User.PushSubscription.optIn();
-                const btn = document.getElementById('btn-resubscribe');
-                if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
-                const banner = document.getElementById('notif-activation-banner');
-                if (banner) banner.remove();
-                showToast('Notifiche attivate!', 'success');
-            } else {
-                showToast('Vai in Impostazioni → Safari → Notifiche e autorizza questa app.', 'error');
-            }
-        } catch(e) {
-            showToast('Errore attivazione. Controlla le impostazioni del telefono.', 'error');
+    const OneSignal = window.OneSignal;
+    if (!OneSignal) { showToast('SDK non pronto, ricarica la pagina.', 'error'); return; }
+    try {
+        const granted = await OneSignal.Notifications.requestPermission();
+        if (granted) {
+            await OneSignal.User.PushSubscription.optIn();
+            const btn = document.getElementById('btn-resubscribe');
+            if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
+            const banner = document.getElementById('notif-activation-banner');
+            if (banner) banner.remove();
+            showToast('Notifiche attivate!', 'success');
+        } else {
+            showToast('Vai in Impostazioni → Safari → Notifiche e autorizza questa app.', 'error');
         }
-    });
+    } catch(e) {
+        showToast('Errore: ' + e.message, 'error');
+    }
 };
 
 async function sendPushNotification(title, message, senderEmail, view) {
