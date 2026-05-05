@@ -286,18 +286,24 @@ function initOneSignal(email, name, role) {
 
 async function sendPushNotification(title, message, senderEmail, view) {
     try {
-        const res = await fetch('/.netlify/functions/notify', {
+        const baseUrl = 'https://torreserenalogistic26.netlify.app';
+        const targetUrl = view ? `${baseUrl}/#view=${view}` : baseUrl;
+        await fetch('https://api.onesignal.com/notifications', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, message, senderEmail, view })
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Key os_v2_app_tvpwbj5wqzgplgfw4bcpovjghriorr2sbelutwuiuqkmju5mnsltzwfkpeuknxuoylrgsxvzqc2uomddnhfet5uuv5gf73223f7hixq'
+            },
+            body: JSON.stringify({
+                app_id: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
+                included_segments: ['All'],
+                contents: { it: message, en: message },
+                headings: { it: title, en: title },
+                url: targetUrl,
+                data: view ? { view } : undefined
+            })
         });
-        if (!res.ok) {
-            const err = await res.text();
-            console.error('sendPushNotification error:', res.status, err);
-        }
-    } catch (e) {
-        console.error('sendPushNotification fetch failed:', e);
-    }
+    } catch (e) { }
 }
 
 // ==========================================
