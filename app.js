@@ -134,13 +134,18 @@ window.loginWithPassword = function() {
     const pwd = document.getElementById('login-team-pwd')?.value || '';
     const errEl = document.getElementById('login-step2-error');
     if (pwd !== LOGIN_PASSWORDS.team) {
+        errEl.textContent = 'Password errata. Riprova. (Team: TeamStaff2026)';
         errEl.classList.remove('hidden');
         document.getElementById('login-team-pwd').value = '';
         document.getElementById('login-team-pwd').focus();
         return;
     }
     errEl.classList.add('hidden');
-    if (!pendingLoginUser) return;
+    if (!pendingLoginUser) {
+        errEl.textContent = 'Errore: sessione scaduta. Torna al passo 1.';
+        errEl.classList.remove('hidden');
+        return;
+    }
     if (pendingLoginUser.isNew) {
         // Controllo fresco su Firebase per evitare duplicati in caso di race condition
         db.ref('appData/registeredUsers').once('value', snapshot => {
