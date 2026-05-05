@@ -2681,6 +2681,14 @@ function init() {
     initChat();
     handleViewFromUrl();
 
+    // Inizializza OneSignal anche per utenti già loggati (senza passare dal login)
+    const savedEmail = localStorage.getItem('logistic_torre_email') || '';
+    const savedName  = localStorage.getItem('logistic_torre_username') || '';
+    const savedRole  = localStorage.getItem('logistic_torre_role') || 'animatore';
+    if (localStorage.getItem('logistic_torre_auth') === 'true') {
+        initOneSignal(savedEmail, savedName, savedRole);
+    }
+
     // Dashboard card navigation
     const statEvents = document.getElementById('stat-events-today');
     if (statEvents) statEvents.closest('.stat-card').addEventListener('click', () => navigateTo('events'));
