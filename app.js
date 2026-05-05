@@ -312,34 +312,62 @@ window._dismissNotifPrompt = function() {
     if (modal) modal.remove();
 };
 
-window.activateNotifications = async function() {
-    const OneSignal = window.OneSignal;
-    if (!OneSignal) { showToast('SDK non pronto, ricarica la pagina.', 'error'); return; }
+window.activateNotifications = function() {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+        try {
+            const granted = await OneSignal.Notifications.requestPermission();
+            if (granted) {
+                await OneSignal.User.PushSubscription.optIn();
+                const btn = document.getElementById('btn-resubscribe');
+                if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
+                const banner = document.getElementById('notif-activation-banner');
+                if (banner) banner.remove();
+                showToast('Notifiche attivate! 🔔', 'success');
+            } else {
+                showToast('Vai in Impostazioni → Safari → Notifiche e autorizza questa app.', 'error');
+            }
+        } catch(e) {
+            showToast('Errore attivazione: ' + e.message, 'error');
+        }
+    });
+};
+
+window.sendTestNotification = async function() {
+    showToast('Invio notifica di test...', 'success');
     try {
-        const granted = await OneSignal.Notifications.requestPermission();
-        if (granted) {
-            await OneSignal.User.PushSubscription.optIn();
-            const btn = document.getElementById('btn-resubscribe');
-            if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
-            const banner = document.getElementById('notif-activation-banner');
-            if (banner) banner.remove();
-            showToast('Notifiche attivate!', 'success');
+        const res = await fetch('/.netlify/functions/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: '🔔 Test notifica', message: 'Se vedi questo banner le notifiche funzionano!', view: 'dashboard' })
+        });
+        const data = await res.json();
+        if (data.recipients > 0) {
+            showToast('✅ Inviata a ' + data.recipients + ' dispositivi', 'success');
+        } else if (data.id) {
+            showToast('✅ Inviata (ID: ' + data.id + ')', 'success');
         } else {
-            showToast('Vai in Impostazioni → Safari → Notifiche e autorizza questa app.', 'error');
+            showToast('⚠️ Risposta: ' + JSON.stringify(data), 'error');
         }
     } catch(e) {
-        showToast('Errore: ' + e.message, 'error');
+        showToast('❌ Errore: ' + e.message, 'error');
     }
 };
 
 async function sendPushNotification(title, message, senderEmail, view) {
     try {
-        await fetch('/.netlify/functions/notify', {
+        const res = await fetch('/.netlify/functions/notify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, message, view })
         });
-    } catch (e) { }
+        if (!res.ok && currentRole === 'admin') {
+            const txt = await res.text();
+            showToast('Errore notifica: ' + res.status + ' ' + txt, 'error');
+        }
+    } catch (e) {
+        if (currentRole === 'admin') showToast('Notifica non inviata: ' + e.message, 'error');
+    }
 }
 
 // ==========================================

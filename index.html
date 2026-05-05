@@ -305,6 +305,11 @@
                         <div class="avatar" id="user-avatar">ADM</div>
                     </div>
 
+                    <!-- Test notifica (solo admin) -->
+                    <button class="btn-icon admin-only hidden" id="btn-test-notif" title="Invia notifica di test a tutti" style="margin-left: 5px; color: #3b82f6;" onclick="window.sendTestNotification()">
+                        <span class="material-symbols-outlined">send</span>
+                    </button>
+
                     <!-- Riattiva notifiche -->
                     <button class="btn-icon" id="btn-resubscribe" title="Riattiva notifiche" style="margin-left: 5px; color: var(--text-muted);">
                         <span class="material-symbols-outlined">notifications</span>
@@ -705,7 +710,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.40"></script>
+    <script src="app.js?v=4.41"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>
