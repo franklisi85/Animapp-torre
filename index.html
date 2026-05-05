@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>AnimApp - Gestione Struttura</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="stylesheet" href="style.css?v=16">
+    
+    <!-- PWA Config -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+    <link rel="apple-touch-icon" href="icona-animapp.png">
+    <style>
+        body.view-as-animatore .role-animatore-hide {
+            display: none !important;
+        }
+
+        /* ── MOBILE BASE (≤768px) ─────────────────────── */
+        @media (max-width: 768px) {
+            html, body { overflow: hidden; height: 100%; }
+
+            /* Sidebar stretta, non si taglia mai */
+            .sidebar {
+                width: 72px !important;
+                min-width: 72px !important;
+                flex-shrink: 0 !important;
+                height: 100%;
+                max-height: 100vh;
+                max-height: 100dvh;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+            }
+            .sidebar-header { padding: 12px 6px; }
+            .logo { flex-direction: column; text-align: center; gap: 2px; }
+            .logo span { font-size: 24px; }
+            .logo h2 { display: none; }
+
+            .nav-links { padding: 8px 0; }
+            .nav-links li {
+                flex-direction: column;
+                padding: 10px 4px;
+                text-align: center;
+                gap: 3px;
+            }
+            .nav-links li span:last-child {
+                font-size: 0.62rem;
+                line-height: 1.1;
+                white-space: normal;
+                display: block;
+            }
+
+            /* Main content occupa il resto, mai tagliato */
+            .main-content { flex: 1 1 0; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+
+            /* Topbar compatta */
+            .topbar { padding: 0 10px; height: 54px; flex-shrink: 0; }
+            .page-title h1 { font-size: 0.95rem; }
+            .topbar-actions { gap: 6px; }
+
+            /* Nascondi il testo nel pulsante Capo Equipe, mostra solo icona */
+            #btn-admin-login { font-size: 0 !important; padding: 6px 8px; min-width: 0; }
+            #btn-admin-login .material-symbols-outlined { font-size: 17px !important; }
+
+            /* Avatar più piccolo */
+            .user-profile .avatar { width: 30px; height: 30px; font-size: 0.6rem; }
+
+            /* Contenuto: scorribile in entrambe le direzioni */
+            .content-wrapper {
+                padding: 12px;
+                padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+                overflow-y: auto;
+                overflow-x: auto;
+                flex: 1 1 0;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            /* Tutti i contenitori interni min-width 0 per non sfondare */
+            .view { min-width: 0; }
+            .sectors-list { min-width: 0; }
+            .sector-card { min-width: 0; overflow: visible; }
+            .activity-block { min-width: 0; }
+            .view-header { flex-wrap: wrap; gap: 8px; }
+            .view-header h2 { font-size: 1rem; }
+
+            /* Tabelle scrollabili */
+            .table-container { overflow-x: auto; }
+
+            /* Dashboard grid su mobile */
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .stat-card { padding: 14px; gap: 12px; }
+            .stat-info p { font-size: 1.4rem; }
+        }
+
+        /* ── PORTRAIT SOLO ────────────────────────────── */
+        @media (max-width: 768px) and (orientation: portrait) {
+            /* Planning: una colonna per giorno, scorrimento verticale */
+            .calendar-grid {
+                display: flex !important;
+                flex-direction: column !important;
+                height: auto !important;
+                gap: 8px;
+                overflow-x: visible;
+            }
+            .day-col { width: 100% !important; min-height: auto; }
+            .day-events { max-height: 200px; overflow-y: auto; }
+        }
+
+        /* ── LANDSCAPE SOLO ───────────────────────────── */
+        @media (max-width: 900px) and (orientation: landscape) {
+            html, body { overflow: hidden; height: 100%; }
+            .sidebar {
+                width: calc(56px + env(safe-area-inset-left)) !important;
+                min-width: calc(56px + env(safe-area-inset-left)) !important;
+                flex-shrink: 0 !important;
+                height: 100dvh;
+                max-height: 100dvh;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+                padding-left: env(safe-area-inset-left);
+            }
+            .nav-links li span:last-child { display: none !important; }
+            .nav-links li { padding: 12px 4px; }
+            .main-content { flex: 1 1 0; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+            .content-wrapper { flex: 1 1 0; overflow-y: auto; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            /* Planning: griglia scrollabile orizzontalmente */
+            .calendar-grid {
+                display: grid !important;
+                grid-template-columns: repeat(7, minmax(110px, 1fr)) !important;
+                height: 52vh !important;
+                overflow-x: auto;
+            }
+            .day-col { min-width: 110px; }
+            .event-box { font-size: 0.72rem; padding: 5px 6px; }
+            .event-box .t { font-size: 0.78rem; }
+            .event-box .time,
+            .event-box .loc { font-size: 0.68rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- LOGIN GATE -->
+    <div id="login-gate" class="login-gate">
+        <div class="login-particles"></div>
+        <div class="login-card">
+            <div class="login-logo">
+                <span class="material-symbols-outlined">tour</span>
+                <h2>AnimApp</h2>
+                <p class="login-subtitle">Gestione Struttura • Area Riservata</p>
+            </div>
+            <!-- Step 1: Identità -->
+            <div id="login-step-1">
+                <div class="login-input-group" style="margin-bottom:10px;">
+                    <span class="material-symbols-outlined input-icon">person</span>
+                    <input type="text" id="login-firstname" placeholder="Nome" autocomplete="given-name">
+                </div>
+                <div class="login-input-group" style="margin-bottom:10px;">
+                    <span class="material-symbols-outlined input-icon">badge</span>
+                    <input type="text" id="login-lastname" placeholder="Cognome" autocomplete="family-name">
+                </div>
+                <div class="login-input-group" style="margin-bottom:4px;">
+                    <span class="material-symbols-outlined input-icon">mail</span>
+                    <input type="email" id="login-email" placeholder="Email" autocomplete="email">
+                </div>
+                <p id="login-step1-error" class="login-error hidden" style="margin-bottom:4px;">Compila tutti i campi con una email valida.</p>
+                <div style="margin: 8px 0 4px; text-align:left;">
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; font-size:0.82rem; color:rgba(255,255,255,0.65); line-height:1.5;">
+                        <input type="checkbox" id="privacy-consent" style="margin-top:3px; accent-color:var(--primary); width:16px; height:16px; flex-shrink:0;">
+                        <span>Ho letto e accetto l'<button type="button" onclick="openPrivacyModal()" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:inherit;padding:0;text-decoration:underline;">Informativa Privacy</button> per il trattamento dei miei dati personali.</span>
+                    </label>
+                </div>
+                <p id="login-privacy-error" class="login-error hidden" style="margin-bottom:4px; text-align:left;">Devi accettare l'informativa privacy per continuare.</p>
+                <button type="button" class="login-btn" onclick="loginCheckIdentity()" style="margin-top:8px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;">arrow_forward</span>
+                    Continua
+                </button>
+                <button type="button" class="login-back-btn" onclick="showAdminStep()" style="margin-top:6px; font-size:0.8rem; opacity:0.6;">Accesso Capo Equipe →</button>
+            </div>
+
+            <!-- Step 2: Password (utente approvato) -->
+            <div id="login-step-2" class="hidden">
+                <p id="login-step2-welcome" style="color:rgba(255,255,255,0.7);font-size:0.88rem;margin-bottom:14px;text-align:center;"></p>
+                <div class="login-input-group" style="margin-bottom:4px;">
+                    <span class="material-symbols-outlined input-icon">lock</span>
+                    <input type="password" id="login-team-pwd" placeholder="Password di accesso" autocomplete="current-password">
+                </div>
+                <p id="login-step2-error" class="login-error hidden" style="margin-bottom:4px;">Password errata. Riprova.</p>
+                <button type="button" class="login-btn" onclick="loginWithPassword()" style="margin-top:8px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;">login</span>
+                    Accedi
+                </button>
+                <button type="button" class="login-back-btn" onclick="backToStep1()">← Torna indietro</button>
+            </div>
+
+            <!-- Step 3: Email bloccata -->
+            <div id="login-step-3" class="hidden" style="text-align:center;">
+                <span class="material-symbols-outlined" style="font-size:48px;color:var(--danger);margin-bottom:12px;">block</span>
+                <p style="color:rgba(255,255,255,0.8);font-size:0.95rem;font-weight:600;margin-bottom:8px;">Accesso negato</p>
+                <p style="color:rgba(255,255,255,0.5);font-size:0.82rem;line-height:1.5;margin-bottom:16px;">Questa email è stata bloccata dall'amministratore. Contatta il Capo Equipe per richiedere accesso.</p>
+                <button type="button" class="login-back-btn" onclick="backToStep1()">← Torna indietro</button>
+            </div>
+
+            <!-- Step Admin: password admin -->
+            <div id="login-step-admin" class="hidden">
+                <p style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Capo Equipe</p>
+                <div class="login-input-group" style="margin-bottom:4px;">
+                    <span class="material-symbols-outlined input-icon">admin_panel_settings</span>
+                    <input type="password" id="login-admin-pwd" placeholder="Password amministratore" autocomplete="current-password">
+                </div>
+                <p id="login-admin-error" class="login-error hidden" style="margin-bottom:4px;">Password errata.</p>
+                <button type="button" class="login-btn" onclick="loginAdmin()" style="margin-top:8px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;">shield</span>
+                    Accedi come Admin
+                </button>
+                <button type="button" class="login-back-btn" onclick="backToStep1()">← Torna indietro</button>
+            </div>
+
+            <p class="login-footer" id="login-footer-text">Accesso limitato al personale autorizzato</p>
+        </div>
+    </div>
+
+    <div class="app-container hidden" id="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                     <span class="material-symbols-outlined">tour</span>
+                     <h2>AnimApp</h2>
+                </div>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-view="dashboard">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <span>Dashboard</span>
+                </li>
+                <li class="role-animatore-hide" data-view="inventory">
+                    <span class="material-symbols-outlined">inventory_2</span>
+                    <span>Richiesta Materiali</span>
+                </li>
+                <li data-view="staff">
+                    <span class="material-symbols-outlined">manage_accounts</span>
+                    <span>Responsabili</span>
+                </li>
+                <li data-view="events">
+                    <span class="material-symbols-outlined">calendar_month</span>
+                    <span>Planning Settimanale</span>
+                </li>
+                <li data-view="files">
+                    <span class="material-symbols-outlined">folder</span>
+                    <span>Informazioni e Documenti</span>
+                </li>
+                <li data-view="users" class="admin-only">
+                    <span class="material-symbols-outlined">group</span>
+                    <span>Utenti</span>
+                </li>
+                <li data-view="spettacoli">
+                    <span class="material-symbols-outlined">theater_comedy</span>
+                    <span>Spettacoli</span>
+                </li>
+                <li data-view="chat" style="position:relative;">
+                    <span class="material-symbols-outlined">chat</span>
+                    <span>Chat Team</span>
+                    <span class="badge red hidden" id="chat-badge" style="position:absolute;top:6px;right:6px;font-size:0.65rem;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;">0</span>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="topbar">
+                <div class="page-title">
+                    <h1 id="current-view-title">Dashboard</h1>
+                </div>
+                
+                <div class="topbar-actions">
+                    <!-- Notifications -->
+                    <div class="notifications-wrapper" id="notifications-wrapper">
+                        <button class="btn-icon bell" id="btn-notifications">
+                            <span class="material-symbols-outlined">notifications</span>
+                            <span class="badge red hidden" id="notif-badge">0</span>
+                        </button>
+                        <div class="notifications-dropdown hidden" id="notifications-dropdown">
+                            <div class="dropdown-header">
+                                <h3>Richieste di Reintegro</h3>
+                            </div>
+                            <div class="dropdown-body" id="notifications-list">
+                                <!-- Requests here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Role Toggle -->
+                    <div class="role-selector role-animatore-hide role-operatore-hide">
+                        <button id="btn-admin-login" class="btn small primary">
+                            <span class="material-symbols-outlined" style="font-size:16px;">lock</span> Accesso Capo Equipe
+                        </button>
+                    </div>
+
+                    <div class="user-profile">
+                        <div class="avatar" id="user-avatar">ADM</div>
+                    </div>
+
+                    <!-- Global Logout -->
+                    <button class="btn-icon" id="btn-global-logout" title="Disconnetti e cambia account" style="margin-left: 5px; color: var(--danger);">
+                        <span class="material-symbols-outlined">power_settings_new</span>
+                    </button>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                <!-- Dashboard View -->
+                <section id="view-dashboard" class="view active">
+                    <!-- Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><span class="material-symbols-outlined">event_available</span></div>
+                            <div class="stat-info"><h3>Eventi Settimana</h3><p id="stat-events-today">0</p></div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><span class="material-symbols-outlined">groups</span></div>
+                            <div class="stat-info"><h3>Resp. Reparti</h3><p id="stat-total-staff">0</p></div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon alert"><span class="material-symbols-outlined">warning</span></div>
+                            <div class="stat-info"><h3>Richieste Pendenti</h3><p id="stat-total-requests">0</p></div>
+                        </div>
+                    </div>
+
+                    <div id="page-note-dashboard"></div>
+
+                    <div id="dashboard-sections-wrapper">
+                    <!-- Bacheca Avvisi -->
+                    <div class="dashboard-section" id="dash-sec-avvisi" draggable="true">
+                        <div class="dashboard-section-header">
+                            <h3><span class="material-symbols-outlined dash-drag-handle" title="Trascina per riordinare">drag_indicator</span><span class="material-symbols-outlined">campaign</span> <span id="sec-title-avvisi">Avvisi</span><span id="sec-rename-avvisi"></span></h3>
+                            <button class="btn primary admin-only" onclick="openAddAvvisoModal()">
+                                <span class="material-symbols-outlined" style="font-size:16px;">add</span> Nuovo Avviso
+                            </button>
+                        </div>
+                        <div id="bacheca-avvisi"></div>
+                    </div>
+
+                    <!-- Ordine del Giorno -->
+                    <div class="dashboard-section" id="dash-sec-odg" draggable="true">
+                        <div class="dashboard-section-header">
+                            <h3><span class="material-symbols-outlined dash-drag-handle" title="Trascina per riordinare">drag_indicator</span><span class="material-symbols-outlined">article</span> <span id="sec-title-odg">Ordine del Giorno</span><span id="sec-rename-odg"></span></h3>
+                            <button class="btn primary admin-only" onclick="openAddOrdineGiornoModal()">
+                                <span class="material-symbols-outlined" style="font-size:16px;">upload</span> Carica
+                            </button>
+                        </div>
+                        <div id="bacheca-odg"></div>
+                    </div>
+
+                    <!-- Le Mie Richieste -->
+                    <div class="dashboard-section" id="dash-sec-richieste" draggable="true">
+                        <div class="dashboard-section-header">
+                            <h3><span class="material-symbols-outlined dash-drag-handle" title="Trascina per riordinare">drag_indicator</span><span class="material-symbols-outlined">history</span> <span id="sec-title-richieste">Le Mie Richieste</span><span id="sec-rename-richieste"></span></h3>
+                        </div>
+                        <div id="dashboard-mie-richieste"></div>
+                    </div>
+                    </div>
+                </section>
+
+                <!-- Inventory View (Accordion by Sectors) -->
+                <section id="view-inventory" class="view hidden">
+                    <div class="view-header">
+                        <h2>Richiesta Materiali</h2>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <button class="btn admin-only" id="btn-toggle-requests" onclick="toggleBlockRequests()">
+                                <span class="material-symbols-outlined">block</span> Blocca Richieste
+                            </button>
+                            <button class="btn secondary admin-only" id="btn-add-group">
+                                <span class="material-symbols-outlined">create_new_folder</span> Nuovo Settore
+                            </button>
+                            <button class="btn primary admin-only" id="btn-add-sector">
+                                <span class="material-symbols-outlined">add</span> Nuovo Reparto
+                            </button>
+                        </div>
+                    </div>
+                    <div id="page-note-inventory"></div>
+                    <div class="search-bar-section" id="search-inventory">
+                        <div class="search-input-wrapper">
+                            <span class="material-symbols-outlined">search</span>
+                            <input type="text" class="search-input" id="search-inventory-input" placeholder="Cerca materiale, reparto, attività...">
+                            <button class="search-clear hidden" id="search-inventory-clear" onclick="clearInventorySearch()"><span class="material-symbols-outlined">close</span></button>
+                        </div>
+                        <div class="filter-chips" id="inventory-group-chips"></div>
+                    </div>
+                    <div id="sectors-container" class="sectors-list">
+                        <!-- Sectors injected here -->
+                    </div>
+                </section>
+
+                <!-- Responsabili View -->
+                <section id="view-staff" class="view hidden">
+                    <div class="view-header" style="margin-bottom:20px;">
+                        <h2>Team Responsabili</h2>
+                    </div>
+                    <div id="page-note-staff"></div>
+                    <div class="search-bar-section" id="search-staff">
+                        <div class="search-input-wrapper">
+                            <span class="material-symbols-outlined">search</span>
+                            <input type="text" class="search-input" id="search-staff-input" placeholder="Cerca responsabile per nome...">
+                            <button class="search-clear hidden" id="search-staff-clear" onclick="clearStaffSearch()"><span class="material-symbols-outlined">close</span></button>
+                        </div>
+                        <div class="filter-chips" id="staff-group-chips"></div>
+                    </div>
+                    <div id="staff-cards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px;"></div>
+                </section>
+
+                <!-- Events View (Biweekly Calendar) -->
+                <section id="view-events" class="view hidden">
+                    <div class="view-header">
+                        <h2>Planning Bisettimanale</h2>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                            <span id="planning-period-label" class="planning-period-label">Periodo non impostato</span>
+                            <button class="btn secondary admin-only" onclick="openSetPeriodModal()">
+                                <span class="material-symbols-outlined">edit_calendar</span> Imposta Periodo
+                            </button>
+                            <button class="btn secondary admin-only" id="btn-add-rest" style="background-color:var(--text-muted);color:white;">
+                                <span class="material-symbols-outlined">hotel</span> Riposo
+                            </button>
+                            <button class="btn primary admin-only" id="btn-add-event">
+                                <span class="material-symbols-outlined">add_task</span> Inserisci Evento
+                            </button>
+                        </div>
+                    </div>
+                    <div id="page-note-events"></div>
+                    <div class="search-bar-section" id="search-events">
+                        <div class="search-input-wrapper">
+                            <span class="material-symbols-outlined">search</span>
+                            <input type="text" class="search-input" id="search-events-input" placeholder="Cerca evento...">
+                            <button class="search-clear hidden" id="search-events-clear" onclick="clearEventsSearch()"><span class="material-symbols-outlined">close</span></button>
+                        </div>
+                        <div class="filter-chips">
+                            <button class="filter-chip active" data-filter="week" data-val="" onclick="applyEventsFilter('week','')">Tutte le settimane</button>
+                            <button class="filter-chip" data-filter="week" data-val="1" onclick="applyEventsFilter('week','1')">Settimana 1</button>
+                            <button class="filter-chip" data-filter="week" data-val="2" onclick="applyEventsFilter('week','2')">Settimana 2</button>
+                            <span class="filter-chips-sep"></span>
+                            <button class="filter-chip active" data-filter="type" data-val="" onclick="applyEventsFilter('type','')">Tutti i tipi</button>
+                            <button class="filter-chip" data-filter="type" data-val="event" onclick="applyEventsFilter('type','event')">Solo eventi</button>
+                            <button class="filter-chip" data-filter="type" data-val="rest" onclick="applyEventsFilter('type','rest')">Solo riposi</button>
+                        </div>
+                    </div>
+
+                    <!-- Settimana 1 -->
+                    <div class="planning-week-label" id="week1-label">Settimana 1</div>
+                    <div class="calendar-grid" id="week1-grid">
+                        <div class="day-col"><div class="day-header" id="dh-mon">Lunedì</div><div class="day-events" id="events-mon"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-tue">Martedì</div><div class="day-events" id="events-tue"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-wed">Mercoledì</div><div class="day-events" id="events-wed"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-thu">Giovedì</div><div class="day-events" id="events-thu"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-fri">Venerdì</div><div class="day-events" id="events-fri"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-sat">Sabato</div><div class="day-events" id="events-sat"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-sun">Domenica</div><div class="day-events" id="events-sun"></div></div>
+                    </div>
+
+                    <!-- Settimana 2 -->
+                    <div class="planning-week-label" id="week2-label" style="margin-top:20px;">Settimana 2</div>
+                    <div class="calendar-grid" id="week2-grid">
+                        <div class="day-col"><div class="day-header" id="dh-w2-mon">Lunedì</div><div class="day-events" id="events-w2-mon"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-w2-tue">Martedì</div><div class="day-events" id="events-w2-tue"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-w2-wed">Mercoledì</div><div class="day-events" id="events-w2-wed"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-w2-thu">Giovedì</div><div class="day-events" id="events-w2-thu"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-w2-fri">Venerdì</div><div class="day-events" id="events-w2-fri"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-w2-sat">Sabato</div><div class="day-events" id="events-w2-sat"></div></div>
+                        <div class="day-col"><div class="day-header" id="dh-w2-sun">Domenica</div><div class="day-events" id="events-w2-sun"></div></div>
+                    </div>
+                </section>
+
+                <!-- Files View -->
+                <section id="view-files" class="view hidden">
+                    <div class="view-header" style="flex-direction:column; align-items:flex-start; gap:16px;">
+                        <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                            <h2 style="margin:0;">Documenti & Informativa</h2>
+                            <div class="files-header-actions">
+                                <button class="btn secondary admin-only" id="btn-add-folder" onclick="openFolderModal()">
+                                    <span class="material-symbols-outlined">create_new_folder</span><span class="btn-label"> Nuova Cartella</span>
+                                </button>
+                                <button class="btn admin-only" id="btn-add-gdrive" onclick="openGDriveModal()" style="background:#4285f4; color:white; border:none;">
+                                    <span class="material-symbols-outlined">add_to_drive</span><span class="btn-label"> Da Google Drive</span>
+                                </button>
+                                <button class="btn admin-only" id="btn-add-dropbox" onclick="openDropboxModal()" style="background:#0061fe; color:white; border:none;">
+                                    <span class="material-symbols-outlined">cloud</span><span class="btn-label"> Da Dropbox</span>
+                                </button>
+                                <button class="btn primary admin-only" id="btn-add-file" onclick="openUploadModal()">
+                                    <span class="material-symbols-outlined">cloud_upload</span><span class="btn-label"> Carica File</span>
+                                </button>
+                                <button class="btn admin-only" onclick="resetFiles()" style="background: transparent; border: 1px solid var(--danger); color: var(--danger);" title="Elimina tutti i file e cartelle">
+                                    <span class="material-symbols-outlined">delete_sweep</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="breadcrumbs" id="files-breadcrumbs">
+                            <span class="crumb active" onclick="navigateToFolder('root')">Home</span>
+                        </div>
+                    </div>
+                    <div class="search-bar-section" id="search-files">
+                        <div class="search-input-wrapper">
+                            <span class="material-symbols-outlined">search</span>
+                            <input type="text" class="search-input" id="search-files-input" placeholder="Cerca file o cartella...">
+                            <button class="search-clear hidden" id="search-files-clear" onclick="clearFilesSearch()"><span class="material-symbols-outlined">close</span></button>
+                        </div>
+                        <div class="filter-chips">
+                            <button class="filter-chip active" data-val="" onclick="applyFilesFilter('')">Tutti</button>
+                            <button class="filter-chip" data-val="folder" onclick="applyFilesFilter('folder')">Cartelle</button>
+                            <button class="filter-chip" data-val="pdf" onclick="applyFilesFilter('pdf')">PDF</button>
+                            <button class="filter-chip" data-val="excel" onclick="applyFilesFilter('excel')">Excel</button>
+                            <button class="filter-chip" data-val="image" onclick="applyFilesFilter('image')">Immagini</button>
+                        </div>
+                    </div>
+                    <div id="folder-note-area"></div>
+                    <div id="folders-grid" class="folders-grid" style="margin-bottom: 20px;">
+                        <!-- Folders injected here -->
+                    </div>
+                    <div class="documents-grid" id="files-grid">
+                        <!-- Files injected here -->
+                    </div>
+                </section>
+
+                <!-- Users View (Admin only) -->
+                <section id="view-spettacoli" class="view hidden">
+                    <div class="view-header" style="margin-bottom:16px;">
+                        <h2>Spettacoli & Scalette</h2>
+                        <button class="btn primary admin-only" onclick="openAddSpettacoloModal()" style="padding:7px 14px; font-size:0.85rem; display:flex; align-items:center; gap:5px;">
+                            <span class="material-symbols-outlined" style="font-size:18px;">add</span> Nuovo Spettacolo
+                        </button>
+                    </div>
+                    <div class="spett-filters" id="spett-filters">
+                        <button class="filter-chip active" data-spett-filter="tutti" onclick="filterSpettacoli('tutti')">Tutti</button>
+                        <button class="filter-chip" data-spett-filter="bozza" onclick="filterSpettacoli('bozza')">Bozza</button>
+                        <button class="filter-chip" data-spett-filter="confermato" onclick="filterSpettacoli('confermato')">Confermati</button>
+                        <button class="filter-chip" data-spett-filter="completato" onclick="filterSpettacoli('completato')">Completati</button>
+                    </div>
+                    <div id="spettacoli-list"></div>
+                </section>
+
+                <section id="view-chat" class="view hidden">
+                    <div class="view-header" style="margin-bottom:16px;">
+                        <h2>Chat Team</h2>
+                        <span id="chat-online-count" style="font-size:0.82rem; color:var(--text-muted);"></span>
+                    </div>
+                    <div class="chat-wrapper">
+                        <div class="chat-messages" id="chat-messages">
+                            <div class="chat-loading">
+                                <span class="material-symbols-outlined" style="font-size:32px;color:var(--text-muted);">chat_bubble</span>
+                                <p style="color:var(--text-muted);font-size:0.85rem;margin-top:8px;">Caricamento messaggi...</p>
+                            </div>
+                        </div>
+                        <div class="chat-input-bar">
+                            <input type="text" id="chat-input" class="chat-input" placeholder="Scrivi un messaggio al team..." maxlength="500" autocomplete="off">
+                            <button class="chat-send-btn" onclick="sendChatMessage()" id="chat-send-btn">
+                                <span class="material-symbols-outlined">send</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-users" class="view hidden">
+                    <div class="view-header" style="margin-bottom:24px;">
+                        <h2>Utenti Registrati</h2>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <span id="registered-users-count" style="font-size:0.85rem; color:var(--text-muted);"></span>
+                            <button class="btn primary" onclick="openAddUserModal()" style="padding:7px 14px; font-size:0.85rem; display:flex; align-items:center; gap:5px;">
+                                <span class="material-symbols-outlined" style="font-size:18px;">person_add</span> Aggiungi
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="search-bar-section" id="search-users">
+                        <div class="search-input-wrapper">
+                            <span class="material-symbols-outlined">search</span>
+                            <input type="text" class="search-input" id="search-users-input" placeholder="Cerca per nome o email...">
+                            <button class="search-clear hidden" id="search-users-clear" onclick="clearUsersSearch()"><span class="material-symbols-outlined">close</span></button>
+                        </div>
+                        <div class="filter-chips">
+                            <button class="filter-chip active" data-val="" onclick="applyUsersFilter('')">Tutti</button>
+                            <button class="filter-chip" data-val="animatore" onclick="applyUsersFilter('animatore')">Animatori</button>
+                            <button class="filter-chip" data-val="responsabile" onclick="applyUsersFilter('responsabile')">Responsabili</button>
+                            <button class="filter-chip" data-val="operatore" onclick="applyUsersFilter('operatore')">Operatori</button>
+                        </div>
+                    </div>
+
+                    <!-- Active users -->
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+                        <h3 style="font-size:1rem; font-weight:600; display:flex; align-items:center; gap:8px; margin:0;">
+                            <span class="material-symbols-outlined" style="font-size:18px;">group</span>
+                            Utenti attivi
+                        </h3>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem; color:var(--text-muted); cursor:pointer;">
+                                <input type="checkbox" id="select-all-users" onchange="toggleSelectAllUsers(this)"> Seleziona tutti
+                            </label>
+                            <button class="btn-secondary" style="padding:6px 14px; font-size:0.82rem; display:flex; align-items:center; gap:6px;" onclick="sendEmailToSelected()">
+                                <span class="material-symbols-outlined" style="font-size:16px;">mail</span>
+                                Invia Email
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card" style="padding:16px 24px; margin-bottom:32px;">
+                        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">
+                            Modifica il ruolo o rimuovi un utente. Chi viene rimosso verrà bloccato e non potrà più accedere.
+                        </p>
+                        <div id="registered-users-list"></div>
+                    </div>
+
+                    <!-- Blocked users (in fondo) -->
+                    <div id="blocked-users-section" class="hidden">
+                        <h3 style="font-size:1rem; font-weight:600; color:var(--danger); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                            <span class="material-symbols-outlined" style="font-size:18px;">block</span>
+                            Email bloccate
+                        </h3>
+                        <div class="card" style="padding:16px 24px;">
+                            <div id="blocked-users-list"></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal hidden" id="modal-container">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Titolo</h3>
+                <button class="btn-close" id="btn-close-modal"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Form will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay nome per sessioni già attive -->
+    <div id="name-overlay" class="name-overlay hidden">
+        <div class="name-overlay-card">
+            <div class="name-overlay-icon">
+                <span class="material-symbols-outlined">person</span>
+            </div>
+            <h3>Chi sei?</h3>
+            <p>Identifica il tuo nome per le richieste e notifiche.</p>
+            <div id="name-overlay-content" style="margin-bottom:8px;"></div>
+            <p id="name-overlay-error" class="hidden" style="color:var(--danger);font-size:0.85rem;margin-bottom:8px;">Seleziona o inserisci il tuo nome.</p>
+            <button class="btn primary" onclick="saveOverlayName()" style="width:100%;justify-content:center;margin-top:8px;">Conferma</button>
+        </div>
+    </div>
+
+    <!-- Privacy Policy Modal -->
+    <div id="privacy-modal" class="login-gate hidden" style="z-index:10000; padding:16px; align-items:center; justify-content:center;">
+        <div class="login-card" style="max-width:520px; text-align:left; max-height:85vh; overflow-y:auto; padding:32px 28px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="color:#f8fafc; font-family:var(--font-heading); font-size:1.1rem; margin:0;">Informativa Privacy</h3>
+                <button onclick="closePrivacyModal()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:28px;line-height:1;padding:0;">×</button>
+            </div>
+            <div style="color:rgba(255,255,255,0.72); font-size:0.85rem; line-height:1.75;">
+                <p style="margin-bottom:14px;"><strong style="color:#f8fafc;">Titolare del trattamento:</strong> ArtGroup, responsabile dell'applicazione AnimApp e del relativo accesso.</p>
+                <p style="margin-bottom:14px;"><strong style="color:#f8fafc;">Dati raccolti:</strong> nome, cognome e indirizzo email forniti al momento della registrazione.</p>
+                <p style="margin-bottom:14px;"><strong style="color:#f8fafc;">Finalità:</strong> gestione degli accessi e delle operazioni interne (richieste materiali, planning, documenti di servizio).</p>
+                <p style="margin-bottom:14px;"><strong style="color:#f8fafc;">Base giuridica:</strong> esecuzione del rapporto di collaborazione ai sensi dell'art. 6(1)(b) del GDPR.</p>
+                <p style="margin-bottom:14px;"><strong style="color:#f8fafc;">Conservazione:</strong> i dati vengono conservati per la durata del rapporto di collaborazione e rimossi su richiesta o alla cessazione dello stesso.</p>
+                <p style="margin-bottom:14px;"><strong style="color:#f8fafc;">Responsabili esterni:</strong> Google LLC (Firebase Realtime Database) come fornitore di infrastruttura cloud, in conformità con le policy GDPR di Google.</p>
+                <p style="margin-bottom:14px;"><strong style="color:#f8fafc;">I tuoi diritti:</strong> puoi richiedere in qualsiasi momento accesso, rettifica o cancellazione dei tuoi dati contattando l'amministratore dell'app.</p>
+                <p style="color:rgba(255,255,255,0.35); font-size:0.76rem; margin-top:16px; border-top:1px solid rgba(255,255,255,0.1); padding-top:14px;">Ai sensi del Regolamento UE 2016/679 (GDPR) e del D.Lgs. 196/2003 — Codice in materia di protezione dei dati personali.</p>
+            </div>
+            <button onclick="closePrivacyModal()" class="login-btn" style="margin-top:20px;">Ho letto</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
+    <script src="app.js?v=4.27"></script>
+    
+    <!-- Service Worker Registration for PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js').then((reg) => {
+            console.log('App Installabile Attivata!', reg.scope);
+          });
+        });
+      }
+    </script>
+</body>
+</html>

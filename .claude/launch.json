@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "AnimApp — Live Server (Python)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5500", "--directory", "/Users/lisif/Desktop/help brain/LOGISTIC TORRE"],
+      "port": 5500
+    },
+    {
+      "name": "AnimApp — Live Server (npx serve)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "/Users/lisif/Desktop/help brain/LOGISTIC TORRE", "-p", "3000", "--no-clipboard"],
+      "port": 3000
+    }
+  ]
+}
