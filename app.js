@@ -4004,8 +4004,10 @@ function updateChatBadge(messages) {
     if (unseen > 0) {
         badge.textContent = unseen > 9 ? '9+' : unseen;
         badge.classList.remove('hidden');
+        setAppBadge(unseen);
     } else {
         badge.classList.add('hidden');
+        setAppBadge(0);
     }
 }
 
@@ -4015,6 +4017,16 @@ function markChatSeen() {
     localStorage.setItem('chat_last_seen', now);
     const badge = document.getElementById('chat-badge');
     if (badge) badge.classList.add('hidden');
+    setAppBadge(0);
+}
+
+function setAppBadge(count) {
+    if (!navigator.setAppBadge) return;
+    if (count > 0) {
+        navigator.setAppBadge(count).catch(() => {});
+    } else {
+        navigator.clearAppBadge().catch(() => {});
+    }
 }
 
 window.sendChatMessage = function() {
