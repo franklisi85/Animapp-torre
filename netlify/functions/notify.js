@@ -24,6 +24,7 @@ exports.handler = async (event) => {
         contents: { it: message, en: message },
         headings: { it: title, en: title },
         url: targetUrl,
+        data: view ? { view } : undefined,
         // Non notifica il mittente stesso
         filters: senderEmail ? [
             { field: 'tag', key: 'email', relation: '!=', value: senderEmail }

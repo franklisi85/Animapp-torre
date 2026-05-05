@@ -271,6 +271,10 @@ function initOneSignal(email, name, role) {
         if (!isSubscribed) {
             setTimeout(() => OneSignal.Slidedown.promptPush(), 3000);
         }
+        OneSignal.Notifications.addEventListener('click', (event) => {
+            const view = event?.notification?.additionalData?.view;
+            if (view) setTimeout(() => navigateTo(view), 400);
+        });
     });
 }
 
