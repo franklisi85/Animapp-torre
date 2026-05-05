@@ -3,7 +3,7 @@ exports.handler = async (event) => {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
-    const apiKey = process.env.ONESIGNAL_API_KEY || 'os_v2_app_tvpwbj5wqzgplgfw4bcpovjghtfqkmh3qyaeneer3bgtdfijfgtty55u7wwo7i6kbwsclyt4cpq43qypstqvs6wyrhlpmf7mnybuq2a';
+    const apiKey = process.env.ONESIGNAL_API_KEY || 'os_v2_app_tvpwbj5wqzgplgfw4bcpovjghriorr2sbelutwuiuqkmju5mnsltzwfkpeuknxuoylrgsxvzqc2uomddnhfet5uuv5gf73223f7hixq';
 
     let body;
     try { body = JSON.parse(event.body); } catch {
