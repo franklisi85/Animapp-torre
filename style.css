@@ -84,9 +84,10 @@ body {
     align-items: center; justify-content: space-between; padding: 0 40px;
     box-shadow: var(--shadow-sm); z-index: 5;
 }
-.page-title h1 { font-family: var(--font-heading); font-size: 1.5rem; font-weight: 600; color: var(--text-main); }
+.page-title { flex: 1 1 0; min-width: 0; overflow: hidden; }
+.page-title h1 { font-family: var(--font-heading); font-size: 1.5rem; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.topbar-actions { display: flex; align-items: center; gap: 24px; }
+.topbar-actions { display: flex; align-items: center; gap: 24px; flex-shrink: 0; }
 
 @media (max-width: 768px) {
     .topbar { padding: 0 12px; height: 56px; }
