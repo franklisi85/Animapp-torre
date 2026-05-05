@@ -1,4 +1,4 @@
-const CACHE_NAME = 'animapp-v42';
+const CACHE_NAME = 'animapp-v43';
 const STATIC_ASSETS = [
     '/',
     '/index.html',

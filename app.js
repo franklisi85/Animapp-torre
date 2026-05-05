@@ -2425,6 +2425,7 @@ window.addAvviso = async function() {
     appData.avvisi.push(avviso);
     saveData(); renderDashboard(); modal.classList.add('hidden');
     showToast('Avviso pubblicato.', 'success');
+    sendPushNotification('📢 Nuovo Avviso', testo.length > 100 ? testo.slice(0, 97) + '...' : testo, null, 'dashboard');
 };
 
 window.deleteAvviso = function(id) {
@@ -2508,6 +2509,7 @@ window.uploadOrdineGiorno = async function() {
         renderDashboard();
         document.getElementById('modal-container').classList.add('hidden');
         showToast('Documento pubblicato nella bacheca.', 'success');
+        sendPushNotification('📋 Ordine di Servizio', `${currentUsername || 'Admin'} ha pubblicato un nuovo ordine di servizio`, null, 'dashboard');
     } catch(e) {
         console.error(e);
         showToast('Errore durante il caricamento. Riprova.', 'error');
