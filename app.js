@@ -136,7 +136,7 @@ window.loginWithPassword = function() {
     const pwd = document.getElementById('login-team-pwd')?.value || '';
     const errEl = document.getElementById('login-step2-error');
     if (pwd !== LOGIN_PASSWORDS.team) {
-        errEl.textContent = 'Password errata. Riprova. (Team: TeamStaff2026)';
+        errEl.textContent = 'Password errata. Riprova.';
         errEl.classList.remove('hidden');
         document.getElementById('login-team-pwd').value = '';
         document.getElementById('login-team-pwd').focus();
@@ -266,9 +266,9 @@ function initOneSignal(email, name, role) {
         const btn = document.getElementById('btn-resubscribe');
         if (isSubscribed) {
             try { await OneSignal.User.PushSubscription.optIn(); } catch(e) {}
-            if (btn) { btn.style.color = 'var(--success, #22c55e)'; btn.title = 'Notifiche attive'; }
+            if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
         } else {
-            if (btn) { btn.style.color = 'var(--warning, #f59e0b)'; btn.title = 'Tocca per attivare le notifiche'; }
+            if (btn) { btn.style.color = '#f59e0b'; btn.title = 'Tocca per attivare le notifiche'; }
         }
         OneSignal.Notifications.addEventListener('click', (event) => {
             const view = event?.notification?.additionalData?.view;
@@ -300,11 +300,11 @@ window.activateNotifications = async function() {
     OneSignalDeferred.push(async function(OneSignal) {
         try {
             await OneSignal.Notifications.requestPermission();
-            const granted = await OneSignal.Notifications.permissionNative;
-            if (granted === 'granted') {
+            const granted = OneSignal.Notifications.permission;
+            if (granted === true || granted === 'granted') {
                 await OneSignal.User.PushSubscription.optIn();
                 const btn = document.getElementById('btn-resubscribe');
-                if (btn) { btn.style.color = 'var(--success)'; btn.title = 'Notifiche attive'; }
+                if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
                 const banner = document.getElementById('notif-activation-banner');
                 if (banner) banner.remove();
                 showToast('Notifiche attivate!', 'success');
