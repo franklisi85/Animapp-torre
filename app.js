@@ -259,10 +259,9 @@ function initOneSignal(email, name, role) {
         const btn = document.getElementById('btn-resubscribe');
         if (isSubscribed) {
             try { await OneSignal.User.PushSubscription.optIn(); } catch(e) {}
-            if (btn) { btn.style.color = 'var(--success)'; btn.title = 'Notifiche attive'; }
+            if (btn) { btn.style.color = 'var(--success, #22c55e)'; btn.title = 'Notifiche attive'; }
         } else {
             if (btn) { btn.style.color = 'var(--warning, #f59e0b)'; btn.title = 'Tocca per attivare le notifiche'; }
-            showNotifBanner();
         }
         OneSignal.Notifications.addEventListener('click', (event) => {
             const view = event?.notification?.additionalData?.view;
