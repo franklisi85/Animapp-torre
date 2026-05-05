@@ -247,19 +247,7 @@ function initOneSignal(email, name, role) {
     OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
             appId: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
-            promptOptions: {
-                slidedown: {
-                    prompts: [{
-                        type: 'push',
-                        autoPrompt: false,
-                        text: {
-                            actionMessage: '🔔 Vuoi ricevere notifiche quando il team ti scrive in chat?',
-                            acceptButton: 'Sì, attiva',
-                            cancelButton: 'No grazie'
-                        }
-                    }]
-                }
-            }
+            promptOptions: { slidedown: { prompts: [{ type: 'push', autoPrompt: false }] } }
         });
         if (email) {
             await OneSignal.login(email);
@@ -268,24 +256,59 @@ function initOneSignal(email, name, role) {
             OneSignal.User.addTag('role', role);
         }
         const isSubscribed = await OneSignal.User.PushSubscription.optedIn;
+        const btn = document.getElementById('btn-resubscribe');
         if (isSubscribed) {
-            // Rinnova silenziosamente la sottoscrizione se è scaduta/rotta
             try { await OneSignal.User.PushSubscription.optIn(); } catch(e) {}
+            if (btn) { btn.style.color = 'var(--success)'; btn.title = 'Notifiche attive'; }
         } else {
-            setTimeout(() => OneSignal.Slidedown.promptPush(), 3000);
+            if (btn) { btn.style.color = 'var(--warning, #f59e0b)'; btn.title = 'Tocca per attivare le notifiche'; }
+            showNotifBanner();
         }
         OneSignal.Notifications.addEventListener('click', (event) => {
             const view = event?.notification?.additionalData?.view;
             if (view) {
                 localStorage.setItem('pending_nav_view', view);
-                setTimeout(() => {
-                    navigateTo(view);
-                    localStorage.removeItem('pending_nav_view');
-                }, 500);
+                setTimeout(() => { navigateTo(view); localStorage.removeItem('pending_nav_view'); }, 500);
             }
         });
     });
 }
+
+function showNotifBanner() {
+    if (document.getElementById('notif-activation-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'notif-activation-banner';
+    banner.innerHTML = `
+        <span class="material-symbols-outlined" style="font-size:20px;">notifications_off</span>
+        <span style="flex:1">Attiva le notifiche per ricevere messaggi e avvisi del team</span>
+        <button onclick="activateNotifications()" style="background:white;color:#1e293b;border:none;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;font-size:0.85rem;">Attiva</button>
+        <button onclick="document.getElementById('notif-activation-banner').remove()" style="background:none;border:none;color:white;cursor:pointer;padding:4px 8px;font-size:18px;">✕</button>
+    `;
+    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#f59e0b;color:white;display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:0.88rem;box-shadow:0 -2px 10px rgba(0,0,0,0.2);';
+    document.body.appendChild(banner);
+}
+
+window.activateNotifications = async function() {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+        try {
+            await OneSignal.Notifications.requestPermission();
+            const granted = await OneSignal.Notifications.permissionNative;
+            if (granted === 'granted') {
+                await OneSignal.User.PushSubscription.optIn();
+                const btn = document.getElementById('btn-resubscribe');
+                if (btn) { btn.style.color = 'var(--success)'; btn.title = 'Notifiche attive'; }
+                const banner = document.getElementById('notif-activation-banner');
+                if (banner) banner.remove();
+                showToast('Notifiche attivate!', 'success');
+            } else {
+                showToast('Vai in Impostazioni → Safari → Notifiche e autorizza questa app.', 'error');
+            }
+        } catch(e) {
+            showToast('Errore attivazione. Controlla le impostazioni del telefono.', 'error');
+        }
+    });
+};
 
 async function sendPushNotification(title, message, senderEmail, view) {
     try {
@@ -667,22 +690,7 @@ window.submitAdminLogin = function() {
 // Global Logout Logic
 const btnResubscribe = document.getElementById('btn-resubscribe');
 if (btnResubscribe) {
-    btnResubscribe.addEventListener('click', async () => {
-        try {
-            window.OneSignalDeferred = window.OneSignalDeferred || [];
-            OneSignalDeferred.push(async function(OneSignal) {
-                const isSubscribed = await OneSignal.User.PushSubscription.optedIn;
-                if (isSubscribed) {
-                    await OneSignal.User.PushSubscription.optIn();
-                    showToast('Notifiche riattivate!', 'success');
-                } else {
-                    await OneSignal.Slidedown.promptPush();
-                }
-            });
-        } catch(e) {
-            showToast('Vai in Impostazioni del telefono e riattiva le notifiche per questa app.', 'error');
-        }
-    });
+    btnResubscribe.addEventListener('click', () => activateNotifications());
 }
 
 const btnGlobalLogout = document.getElementById('btn-global-logout');
