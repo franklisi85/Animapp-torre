@@ -86,48 +86,50 @@ function showLoginStep(stepId) {
 }
 
 window.loginCheckIdentity = function() {
-    const firstName = (document.getElementById('login-firstname')?.value || '').trim();
-    const lastName  = (document.getElementById('login-lastname')?.value || '').trim();
-    const email     = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
-    const errEl = document.getElementById('login-step1-error');
-    const privacyEl = document.getElementById('privacy-consent');
-    const privacyErrEl = document.getElementById('login-privacy-error');
+    try {
+        const firstName = (document.getElementById('login-firstname')?.value || '').trim();
+        const lastName  = (document.getElementById('login-lastname')?.value || '').trim();
+        const email     = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
+        const errEl = document.getElementById('login-step1-error');
+        const privacyEl = document.getElementById('privacy-consent');
+        const privacyErrEl = document.getElementById('login-privacy-error');
 
-    if (!firstName || !lastName || !email || !email.includes('@')) {
-        errEl.classList.remove('hidden'); return;
-    }
+        if (!firstName || !lastName || !email || !email.includes('@')) {
+            errEl.classList.remove('hidden'); return;
+        }
+        if (!firebaseDataLoaded) {
+            errEl.textContent = 'Connessione in corso, riprova tra un secondo...';
+            errEl.classList.remove('hidden'); return;
+        }
+        errEl.textContent = 'Compila tutti i campi con una email valida.';
+        errEl.classList.add('hidden');
+        if (!privacyEl || !privacyEl.checked) {
+            privacyErrEl.classList.remove('hidden'); return;
+        }
+        privacyErrEl.classList.add('hidden');
 
-    if (!firebaseDataLoaded) {
-        errEl.textContent = 'Connessione in corso, riprova tra un secondo...';
-        errEl.classList.remove('hidden');
-        return;
-    }
-    errEl.textContent = 'Compila tutti i campi con una email valida.';
-    errEl.classList.add('hidden');
-    if (!privacyEl || !privacyEl.checked) {
-        privacyErrEl.classList.remove('hidden'); return;
-    }
-    privacyErrEl.classList.add('hidden');
+        if ((appData.blockedEmails || []).includes(email)) {
+            showLoginStep('login-step-3'); return;
+        }
 
-    // Check if email is blocked
-    if ((appData.blockedEmails || []).includes(email)) {
-        showLoginStep('login-step-3');
-        return;
-    }
+        const usersRaw = appData.registeredUsers || [];
+        const users = Array.isArray(usersRaw) ? usersRaw : Object.values(usersRaw);
+        const existing = users.find(u => u && u.email === email);
+        const welcome = document.getElementById('login-step2-welcome');
 
-    const users = appData.registeredUsers || [];
-    const existing = users.find(u => u.email === email);
-    const welcome = document.getElementById('login-step2-welcome');
-
-    if (existing) {
-        pendingLoginUser = existing;
-        if (welcome) welcome.textContent = `Bentornato, ${existing.firstName}!`;
-    } else {
-        pendingLoginUser = { isNew: true, firstName, lastName, email };
-        if (welcome) welcome.textContent = `Benvenuto, ${firstName}!`;
+        if (existing) {
+            pendingLoginUser = existing;
+            if (welcome) welcome.textContent = `Bentornato, ${existing.firstName}!`;
+        } else {
+            pendingLoginUser = { isNew: true, firstName, lastName, email };
+            if (welcome) welcome.textContent = `Benvenuto, ${firstName}!`;
+        }
+        showLoginStep('login-step-2');
+        setTimeout(() => document.getElementById('login-team-pwd')?.focus(), 50);
+    } catch(e) {
+        const errEl = document.getElementById('login-step1-error');
+        if (errEl) { errEl.textContent = 'Errore: ' + e.message; errEl.classList.remove('hidden'); }
     }
-    showLoginStep('login-step-2');
-    setTimeout(() => document.getElementById('login-team-pwd')?.focus(), 50);
 };
 
 window.loginWithPassword = function() {
