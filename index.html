@@ -543,8 +543,23 @@
                 <section id="view-chat" class="view hidden">
                     <div class="view-header" style="margin-bottom:16px;">
                         <h2>Chat Team</h2>
-                        <span id="chat-online-count" style="font-size:0.82rem; color:var(--text-muted);"></span>
+                        <button class="btn secondary admin-only" onclick="toggleChatPermissionsPanel()" style="padding:6px 12px; font-size:0.82rem; display:flex; align-items:center; gap:5px;">
+                            <span class="material-symbols-outlined" style="font-size:16px;">manage_accounts</span> Gestisci permessi
+                        </button>
                     </div>
+
+                    <!-- Pannello permessi (solo admin) -->
+                    <div id="chat-permissions-panel" class="hidden admin-only" style="margin-bottom:16px;">
+                        <div class="card" style="padding:16px 20px;">
+                            <h4 style="margin:0 0 12px; font-size:0.9rem; font-weight:600; display:flex; align-items:center; gap:7px;">
+                                <span class="material-symbols-outlined" style="font-size:18px;">edit_notifications</span>
+                                Chi può scrivere in chat
+                            </h4>
+                            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:14px;">L'admin può sempre scrivere. Attiva il permesso per ogni membro del team.</p>
+                            <div id="chat-permissions-list"></div>
+                        </div>
+                    </div>
+
                     <div class="chat-wrapper">
                         <div class="chat-messages" id="chat-messages">
                             <div class="chat-loading">
@@ -552,11 +567,15 @@
                                 <p style="color:var(--text-muted);font-size:0.85rem;margin-top:8px;">Caricamento messaggi...</p>
                             </div>
                         </div>
-                        <div class="chat-input-bar">
+                        <div class="chat-input-bar" id="chat-input-bar">
                             <input type="text" id="chat-input" class="chat-input" placeholder="Scrivi un messaggio al team..." maxlength="500" autocomplete="off">
                             <button class="chat-send-btn" onclick="sendChatMessage()" id="chat-send-btn">
                                 <span class="material-symbols-outlined">send</span>
                             </button>
+                        </div>
+                        <div id="chat-no-permission" class="hidden" style="padding:14px 16px; text-align:center; border-top:1px solid var(--border); background:var(--bg-main); color:var(--text-muted); font-size:0.85rem;">
+                            <span class="material-symbols-outlined" style="font-size:18px; vertical-align:middle; margin-right:5px;">lock</span>
+                            Non hai il permesso di scrivere. Contatta il Capo Equipe.
                         </div>
                     </div>
                 </section>

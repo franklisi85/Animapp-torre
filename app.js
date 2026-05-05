@@ -3853,11 +3853,78 @@ let chatListener = null;
 let lastSeenChatTimestamp = parseInt(localStorage.getItem('chat_last_seen') || '0');
 let chatInitialized = false;
 
+function canWriteInChat() {
+    if (currentRole === 'admin') return true;
+    const myEmail = localStorage.getItem('logistic_torre_email') || '';
+    const allowed = (appData.chatSettings && appData.chatSettings.allowedWriters) || [];
+    return allowed.includes(myEmail);
+}
+
+function renderChatInputBar() {
+    const bar  = document.getElementById('chat-input-bar');
+    const noPerm = document.getElementById('chat-no-permission');
+    if (!bar || !noPerm) return;
+    if (canWriteInChat()) {
+        bar.classList.remove('hidden');
+        noPerm.classList.add('hidden');
+    } else {
+        bar.classList.add('hidden');
+        noPerm.classList.remove('hidden');
+    }
+}
+
+function renderChatPermissionsPanel() {
+    const el = document.getElementById('chat-permissions-list');
+    if (!el || currentRole !== 'admin') return;
+    const allowed  = (appData.chatSettings && appData.chatSettings.allowedWriters) || [];
+    const users    = (appData.registeredUsers || []).filter(u => u.email);
+    if (users.length === 0) {
+        el.innerHTML = '<p style="color:var(--text-muted);font-size:0.82rem;">Nessun utente registrato.</p>';
+        return;
+    }
+    el.innerHTML = users.map(u => {
+        const isAllowed = allowed.includes(u.email);
+        const fullName  = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+        return `<div class="chat-perm-row">
+            <div class="chat-perm-info">
+                <span class="chat-perm-name">${escHtml(fullName)}</span>
+                <span class="chat-perm-role">${escHtml(u.role || 'animatore')}</span>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" ${isAllowed ? 'checked' : ''} onchange="toggleChatPermission('${escHtml(u.email)}', this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>`;
+    }).join('');
+}
+
+window.toggleChatPermissionsPanel = function() {
+    const panel = document.getElementById('chat-permissions-panel');
+    if (!panel) return;
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) renderChatPermissionsPanel();
+}
+
+window.toggleChatPermission = function(email, enabled) {
+    if (!appData.chatSettings) appData.chatSettings = {};
+    if (!appData.chatSettings.allowedWriters) appData.chatSettings.allowedWriters = [];
+    if (enabled) {
+        if (!appData.chatSettings.allowedWriters.includes(email)) appData.chatSettings.allowedWriters.push(email);
+    } else {
+        appData.chatSettings.allowedWriters = appData.chatSettings.allowedWriters.filter(e => e !== email);
+    }
+    saveData();
+    showToast(enabled ? 'Permesso concesso.' : 'Permesso revocato.', enabled ? 'success' : 'info');
+}
+
 function initChat() {
     if (chatInitialized) return;
     chatInitialized = true;
     const messagesEl = document.getElementById('chat-messages');
     if (!messagesEl) return;
+
+    renderChatInputBar();
+    renderChatPermissionsPanel();
 
     const chatRef = db.ref('chatMessages');
     chatListener = chatRef.limitToLast(200).on('value', (snap) => {
@@ -3866,6 +3933,7 @@ function initChat() {
         messages.sort((a, b) => a.timestamp - b.timestamp);
         renderChatMessages(messages);
         updateChatBadge(messages);
+        renderChatInputBar();
     });
 }
 
@@ -3892,14 +3960,20 @@ function renderChatMessages(messages) {
         const isMine = msg.email === myEmail;
         const time = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
         const initial = (msg.author || '?')[0].toUpperCase();
-        const isAdmin = msg.role === 'admin';
-        const roleLabel = isAdmin ? '<span class="chat-role-badge admin">Capo</span>' : '';
-        html += `<div class="chat-message ${isMine ? 'mine' : 'theirs'}">
+        const isAdminMsg = msg.role === 'admin';
+        const roleLabel = isAdminMsg ? '<span class="chat-role-badge admin">Capo</span>' : '';
+        const canEdit   = isMine || currentRole === 'admin';
+        const canDelete = isMine || currentRole === 'admin';
+        const editedLabel = msg.edited ? '<span style="font-size:0.68rem;color:var(--text-muted);font-style:italic;margin-left:4px;">(modificato)</span>' : '';
+        html += `<div class="chat-message ${isMine ? 'mine' : 'theirs'}" data-msg-key="${msg._key}">
             ${!isMine ? `<div class="chat-avatar">${initial}</div>` : ''}
             <div class="chat-bubble-wrap">
                 ${!isMine ? `<div class="chat-author">${escHtml(msg.author)} ${roleLabel}</div>` : ''}
                 <div class="chat-bubble">${escHtml(msg.text)}</div>
-                <div class="chat-time">${time}${isMine || currentRole === 'admin' ? `<button class="chat-delete-btn" onclick="deleteChatMessage('${msg._key}','${escHtml(msg.email)}')" title="Elimina"><span class="material-symbols-outlined" style="font-size:13px;">delete</span></button>` : ''}</div>
+                <div class="chat-time">${time}${editedLabel}
+                    ${canEdit   ? `<button class="chat-delete-btn" onclick="editChatMessage('${msg._key}',\`${escHtml(msg.text).replace(/`/g,'\\`')}\`)" title="Modifica"><span class="material-symbols-outlined" style="font-size:13px;">edit</span></button>` : ''}
+                    ${canDelete ? `<button class="chat-delete-btn" onclick="deleteChatMessage('${msg._key}','${escHtml(msg.email)}')" title="Elimina" style="color:var(--danger);"><span class="material-symbols-outlined" style="font-size:13px;">delete</span></button>` : ''}
+                </div>
             </div>
         </div>`;
     });
@@ -3935,6 +4009,7 @@ function markChatSeen() {
 }
 
 window.sendChatMessage = function() {
+    if (!canWriteInChat()) { showToast('Non hai il permesso di scrivere in chat.', 'error'); return; }
     const input = document.getElementById('chat-input');
     const text = (input?.value || '').trim();
     if (!text) return;
@@ -3954,6 +4029,34 @@ window.deleteChatMessage = function(key, msgEmail) {
     }
     if (!confirm('Eliminare questo messaggio?')) return;
     db.ref('chatMessages/' + key).remove();
+}
+
+window.editChatMessage = function(key, currentText) {
+    const msgEl  = document.querySelector(`[data-msg-key="${key}"]`);
+    const bubble = msgEl?.querySelector('.chat-bubble');
+    if (!bubble) return;
+    bubble.innerHTML = `<textarea class="chat-edit-input" id="chat-edit-${key}">${currentText}</textarea>
+        <div class="chat-edit-actions">
+            <button class="btn-small" onclick="cancelChatEdit('${key}',\`${currentText.replace(/`/g,'\\`')}\`)">Annulla</button>
+            <button class="btn-small primary" onclick="saveChatEdit('${key}')">Salva</button>
+        </div>`;
+    const ta = document.getElementById(`chat-edit-${key}`);
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+window.cancelChatEdit = function(key, originalText) {
+    const msgEl  = document.querySelector(`[data-msg-key="${key}"]`);
+    const bubble = msgEl?.querySelector('.chat-bubble');
+    if (bubble) bubble.innerHTML = escHtml(originalText);
+}
+
+window.saveChatEdit = function(key) {
+    const ta = document.getElementById(`chat-edit-${key}`);
+    if (!ta) return;
+    const newText = ta.value.trim();
+    if (!newText) { showToast('Il messaggio non può essere vuoto.', 'error'); return; }
+    db.ref('chatMessages/' + key).update({ text: newText, edited: true });
+    showToast('Messaggio modificato.', 'success');
 }
 
 // Invio con Enter nella chat
