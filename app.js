@@ -236,6 +236,54 @@ function finalizeLogin(role, name, email) {
     if (typeof applyRole === 'function') applyRole();
     loginGate.classList.add('hidden');
     setTimeout(() => { appContainer.classList.remove('hidden'); loginGate.style.display = 'none'; }, 600);
+    initOneSignal(email, name, role);
+}
+
+// ==========================================
+// ONESIGNAL — PUSH NOTIFICATIONS
+// ==========================================
+function initOneSignal(email, name, role) {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+            appId: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
+            promptOptions: {
+                slidedown: {
+                    prompts: [{
+                        type: 'push',
+                        autoPrompt: false,
+                        text: {
+                            actionMessage: '🔔 Vuoi ricevere notifiche quando il team ti scrive in chat?',
+                            acceptButton: 'Sì, attiva',
+                            cancelButton: 'No grazie'
+                        }
+                    }]
+                }
+            }
+        });
+        if (email) {
+            await OneSignal.login(email);
+            OneSignal.User.addTag('email', email);
+            OneSignal.User.addTag('name', name);
+            OneSignal.User.addTag('role', role);
+        }
+        const isSubscribed = await OneSignal.User.PushSubscription.optedIn;
+        if (!isSubscribed) {
+            setTimeout(() => OneSignal.Slidedown.promptPush(), 3000);
+        }
+    });
+}
+
+async function sendPushNotification(title, message, senderEmail) {
+    try {
+        await fetch('/.netlify/functions/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, message, senderEmail })
+        });
+    } catch (e) {
+        // notifica non critica, ignora errori silenziosamente
+    }
 }
 
 // ==========================================
@@ -3894,6 +3942,7 @@ window.sendChatMessage = function() {
     const email  = localStorage.getItem('logistic_torre_email') || '';
     const role   = localStorage.getItem('logistic_torre_role') || currentRole || 'animatore';
     db.ref('chatMessages').push({ text, author, email, role, timestamp: Date.now() });
+    sendPushNotification(`💬 ${author}`, text, email);
     input.value = '';
     input.focus();
 }
