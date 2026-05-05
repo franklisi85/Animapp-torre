@@ -550,13 +550,18 @@
 
                     <!-- Pannello permessi (solo admin) -->
                     <div id="chat-permissions-panel" class="hidden admin-only" style="margin-bottom:16px;">
-                        <div class="card" style="padding:16px 20px;">
-                            <h4 style="margin:0 0 12px; font-size:0.9rem; font-weight:600; display:flex; align-items:center; gap:7px;">
-                                <span class="material-symbols-outlined" style="font-size:18px;">edit_notifications</span>
-                                Chi può scrivere in chat
-                            </h4>
-                            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:14px;">L'admin può sempre scrivere. Attiva il permesso per ogni membro del team.</p>
-                            <div id="chat-permissions-list"></div>
+                        <div class="card" style="padding:0; overflow:hidden;">
+                            <div style="padding:12px 16px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; border-bottom:1px solid var(--border);" onclick="toggleChatPermissionsBody()">
+                                <h4 style="margin:0; font-size:0.88rem; font-weight:600; display:flex; align-items:center; gap:7px;">
+                                    <span class="material-symbols-outlined" style="font-size:17px;">edit_notifications</span>
+                                    Chi può scrivere in chat
+                                </h4>
+                                <span class="material-symbols-outlined" id="chat-perm-arrow" style="font-size:20px; color:var(--text-muted); transition:transform 0.2s;">expand_more</span>
+                            </div>
+                            <div id="chat-permissions-body" style="max-height:220px; overflow-y:auto; padding:12px 16px;">
+                                <p style="font-size:0.76rem; color:var(--text-muted); margin-bottom:12px;">L'admin può sempre scrivere. Attiva il permesso per ogni membro del team.</p>
+                                <div id="chat-permissions-list"></div>
+                            </div>
                         </div>
                     </div>
 

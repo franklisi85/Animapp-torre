@@ -3905,6 +3905,15 @@ window.toggleChatPermissionsPanel = function() {
     if (!panel.classList.contains('hidden')) renderChatPermissionsPanel();
 }
 
+window.toggleChatPermissionsBody = function() {
+    const body  = document.getElementById('chat-permissions-body');
+    const arrow = document.getElementById('chat-perm-arrow');
+    if (!body) return;
+    const collapsed = body.style.display === 'none';
+    body.style.display  = collapsed ? '' : 'none';
+    if (arrow) arrow.style.transform = collapsed ? 'rotate(0deg)' : 'rotate(-90deg)';
+}
+
 window.toggleChatPermission = function(email, enabled) {
     if (!appData.chatSettings) appData.chatSettings = {};
     if (!appData.chatSettings.allowedWriters) appData.chatSettings.allowedWriters = [];
