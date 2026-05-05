@@ -265,9 +265,8 @@ function initOneSignal(email, name, role) {
         const isSubscribed = await OneSignal.User.PushSubscription.optedIn;
         const hasPermission = OneSignal.Notifications.permission;
         const btn = document.getElementById('btn-resubscribe');
-        if (isSubscribed) {
-            if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
-        } else if (hasPermission) {
+        if (isSubscribed || hasPermission) {
+            // Sempre rinnova il token ad ogni apertura per evitare che scada
             try { await OneSignal.User.PushSubscription.optIn(); } catch(e) {}
             if (btn) { btn.style.color = '#22c55e'; btn.title = 'Notifiche attive ✓'; }
         } else {
