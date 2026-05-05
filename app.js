@@ -273,7 +273,13 @@ function initOneSignal(email, name, role) {
         }
         OneSignal.Notifications.addEventListener('click', (event) => {
             const view = event?.notification?.additionalData?.view;
-            if (view) setTimeout(() => navigateTo(view), 400);
+            if (view) {
+                localStorage.setItem('pending_nav_view', view);
+                setTimeout(() => {
+                    navigateTo(view);
+                    localStorage.removeItem('pending_nav_view');
+                }, 500);
+            }
         });
     });
 }
@@ -4027,15 +4033,40 @@ function markChatSeen() {
 }
 
 function handleViewFromUrl() {
+    // Controlla URL param (?view=chat)
     const params = new URLSearchParams(window.location.search);
-    const view = params.get('view');
+    let view = params.get('view');
+    if (view) window.history.replaceState({}, '', '/');
+
+    // Controlla localStorage (backup per quando l'app era in background)
+    if (!view) {
+        view = localStorage.getItem('pending_nav_view');
+        if (view) localStorage.removeItem('pending_nav_view');
+    }
+
     if (!view) return;
-    window.history.replaceState({}, '', '/');
-    setTimeout(() => {
-        const navItem = document.querySelector(`.nav-links li[data-view="${view}"]`);
-        if (navItem) navItem.click();
-    }, 600);
+    setTimeout(() => navigateTo(view), 1000);
 }
+
+// Messaggio dal Service Worker (click su notifica)
+if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data?.type === 'NAVIGATE_TO' && event.data.view) {
+            setTimeout(() => navigateTo(event.data.view), 300);
+        }
+    });
+}
+
+// Quando l'app torna in primo piano controlla se c'è una navigazione pendente
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        const view = localStorage.getItem('pending_nav_view');
+        if (view) {
+            localStorage.removeItem('pending_nav_view');
+            setTimeout(() => navigateTo(view), 400);
+        }
+    }
+});
 
 function setAppBadge(count) {
     if (!navigator.setAppBadge) return;
