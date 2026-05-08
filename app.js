@@ -971,6 +971,7 @@ window.deleteRequest = function(notifId) {
     appData.notifications = appData.notifications.filter(n => n.id !== notifId);
     saveData();
     renderNotifications();
+    renderInventory();
     updateNotificationsBadge();
     if (appData.notifications.length === 0) notifDropdown.classList.add('hidden');
     showToast('Richiesta eliminata.', 'success');
@@ -1076,6 +1077,7 @@ function buildSectorCard(sec, secIndex, allSectors, query) {
                 <div class="pr-actions">
                     <span class="badge" style="background:#fff3cd; color:#856404; padding:3px 8px;">In Attesa</span>
                     ${isAdmin ? `<button class="btn small primary admin-only" onclick="approveRestock(${n.id}, ${n.secId}, ${n.matId}, ${n.qty})"><span class="material-symbols-outlined" style="font-size:14px;">check</span> Reintegra</button>` : ''}
+                    ${isAdmin ? `<button class="btn small admin-only" onclick="deleteRequest(${n.id})" style="background:var(--danger);color:white;border:none;" title="Elimina richiesta"><span class="material-symbols-outlined" style="font-size:14px;">delete</span></button>` : ''}
                 </div>
             </div>`).join('');
         pendingHTML = `<div class="sector-pending">
