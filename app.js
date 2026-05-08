@@ -924,6 +924,9 @@ function renderNotifications() {
                 <button class="btn small primary" onclick="approveRestock(${n.id}, ${n.secId}, ${n.matId}, ${n.qty})">
                     Segna Acquistato (Reintegra)
                 </button>
+                <button class="btn small" onclick="deleteRequest(${n.id})" style="background:var(--danger);color:white;border:none;" title="Elimina richiesta">
+                    <span class="material-symbols-outlined" style="font-size:15px;">delete</span> Elimina
+                </button>
             </div>
         `;
         notifList.appendChild(div);
@@ -962,6 +965,16 @@ window.downloadRequestsList = function() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 }
+
+window.deleteRequest = function(notifId) {
+    if (!confirm('Eliminare questa richiesta? Il materiale NON verrà reintegrato.')) return;
+    appData.notifications = appData.notifications.filter(n => n.id !== notifId);
+    saveData();
+    renderNotifications();
+    updateNotificationsBadge();
+    if (appData.notifications.length === 0) notifDropdown.classList.add('hidden');
+    showToast('Richiesta eliminata.', 'success');
+};
 
 window.approveRestock = function(notifId, secId, matId, qty) {
     const sec = appData.sectors.find(s => s.id === secId);
