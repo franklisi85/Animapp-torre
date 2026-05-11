@@ -582,6 +582,7 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+firebase.auth().signInAnonymously().catch(e => console.warn('Firebase auth error:', e));
 let storage;
 
 // Fallback logic for Storage Bucket
@@ -755,7 +756,15 @@ if (btnGlobalLogout) {
     });
 }
 
-// Firebase Listener
+// Firebase Listener — parte solo dopo autenticazione anonima
+let _fbListenerStarted = false;
+firebase.auth().onAuthStateChanged((user) => {
+    if (!user || _fbListenerStarted) return;
+    _fbListenerStarted = true;
+    startFirebaseListener();
+});
+
+function startFirebaseListener() {
 db.ref('appData').on('value', (snapshot) => {
     firebaseDataLoaded = true;
     if (snapshot.exists()) {
@@ -868,6 +877,7 @@ db.ref('appData').on('value', (snapshot) => {
         updateNotificationsBadge();
     }
 });
+} // end startFirebaseListener
 
 // Notifications Logic
 const btnNotifications = document.getElementById('btn-notifications');
