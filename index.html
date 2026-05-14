@@ -258,10 +258,7 @@
                     <span class="material-symbols-outlined">group</span>
                     <span>Utenti</span>
                 </li>
-                <li data-view="spettacoli">
-                    <span class="material-symbols-outlined">theater_comedy</span>
-                    <span>Spettacoli</span>
-                </li>
+
                 <li data-view="chat" style="position:relative;">
                     <span class="material-symbols-outlined">chat</span>
                     <span>Chat Team</span>
@@ -533,22 +530,6 @@
                     </div>
                 </section>
 
-                <!-- Users View (Admin only) -->
-                <section id="view-spettacoli" class="view hidden">
-                    <div class="view-header" style="margin-bottom:16px;">
-                        <h2>Spettacoli & Scalette</h2>
-                        <button class="btn primary admin-only" onclick="openAddSpettacoloModal()" style="padding:7px 14px; font-size:0.85rem; display:flex; align-items:center; gap:5px;">
-                            <span class="material-symbols-outlined" style="font-size:18px;">add</span> Nuovo Spettacolo
-                        </button>
-                    </div>
-                    <div class="spett-filters" id="spett-filters">
-                        <button class="filter-chip active" data-spett-filter="tutti" onclick="filterSpettacoli('tutti')">Tutti</button>
-                        <button class="filter-chip" data-spett-filter="bozza" onclick="filterSpettacoli('bozza')">Bozza</button>
-                        <button class="filter-chip" data-spett-filter="confermato" onclick="filterSpettacoli('confermato')">Confermati</button>
-                        <button class="filter-chip" data-spett-filter="completato" onclick="filterSpettacoli('completato')">Completati</button>
-                    </div>
-                    <div id="spettacoli-list"></div>
-                </section>
 
                 <section id="view-chat" class="view hidden">
                     <div class="view-header" style="margin-bottom:16px;">
@@ -711,7 +692,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.45"></script>
+    <script src="app.js?v=4.46"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>
