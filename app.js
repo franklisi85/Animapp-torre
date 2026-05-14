@@ -1052,7 +1052,7 @@ function buildSectorCard(sec, secIndex, allSectors, query) {
     const materialsHTML = mats.map(mat => {
         const adminEditBtn = isAdmin ? `<button class="btn-icon edit admin-only" onclick="openEditMaterialModal(event, ${sec.id}, ${mat.id})" title="Modifica"><span class="material-symbols-outlined" style="font-size:18px">edit</span></button>` : '';
         const adminDeleteBtn = isAdmin ? `<button class="btn-icon delete admin-only" onclick="deleteMaterial(${sec.id}, ${mat.id})"><span class="material-symbols-outlined" style="font-size:18px">delete</span></button>` : '';
-        const canRequest = currentRole === 'admin' || currentRole === 'operatore';
+        const canRequest = currentRole === 'admin' || currentRole === 'operatore' || currentRole === 'responsabile';
         const restockBtn = !canRequest ? '' : blocked
             ? `<button class="btn small" disabled style="opacity:0.4; cursor:not-allowed; background:var(--text-muted); color:white;"><span class="material-symbols-outlined" style="font-size:16px;">block</span> Bloccato</button>`
             : `<button class="btn small primary" onclick="openRestockModal(${sec.id}, ${mat.id})"><span class="material-symbols-outlined" style="font-size:16px;">add_shopping_cart</span> Richiedi</button>`;
@@ -1220,7 +1220,7 @@ window.openRestockModal = function(secId, matId) {
 }
 
 window.requestRestock = function(secId, matId) {
-    if (currentRole === 'animatore') {
+    if (currentRole !== 'admin' && currentRole !== 'operatore' && currentRole !== 'responsabile') {
         showToast('Solo operatori e responsabili possono fare richieste.', 'error');
         return;
     }
