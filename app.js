@@ -2249,7 +2249,7 @@ function renderProjectPasswordSettings() {
 }
 
 window.saveProjectPasswords = function() {
-    if (currentRole !== 'admin') return;
+    if (currentRole !== 'admin' || !isProjectManager) return;
     const teamPassword = (document.getElementById('project-team-password')?.value || '').trim();
     const capoTeamPassword = (document.getElementById('project-capoteam-password')?.value || '').trim();
     if (!appData.settings) appData.settings = {};
@@ -2274,7 +2274,7 @@ function renderProjectTelegramSettings() {
 }
 
 window.saveProjectTelegramConfig = function() {
-    if (currentRole !== 'admin') return;
+    if (currentRole !== 'admin' || !isProjectManager) return;
     const botTokenMagazzino = (document.getElementById('project-tg-bot-magazzino')?.value || '').trim();
     const chatIdAdmin = (document.getElementById('project-tg-chat-admin')?.value || '').trim();
     const botTokenEventi = (document.getElementById('project-tg-bot-eventi')?.value || '').trim();
@@ -2292,8 +2292,21 @@ function renderRegisteredUsers() {
     if (!approvedContainer) return;
 
     renderAdminContactSettings();
-    renderProjectPasswordSettings();
-    renderProjectTelegramSettings();
+
+    // Sicurezza progetto e Notifiche Telegram: visibili e modificabili SOLO dal Project Manager.
+    // Un Capo Team di progetto non deve vederle né trovarle popolate nel DOM (non solo nascoste via CSS).
+    const pmOnlySection = document.getElementById('pm-only-security-section');
+    if (pmOnlySection) pmOnlySection.style.display = isProjectManager ? '' : 'none';
+    if (isProjectManager) {
+        renderProjectPasswordSettings();
+        renderProjectTelegramSettings();
+    } else {
+        ['project-team-password','project-capoteam-password','project-tg-bot-magazzino','project-tg-chat-admin','project-tg-bot-eventi','project-tg-chat-group'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+    }
+
     wireUsersSearch();
     const users   = appData.registeredUsers || [];
     const blocked = appData.blockedEmails   || [];
