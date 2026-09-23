@@ -1,0 +1,8 @@
+{
+  "name": "gesteven",
+  "private": true,
+  "description": "GestEven — nessun build step: Netlify pubblica i file statici così come sono. Questo package.json serve solo a far installare a Netlify le dipendenze usate dalle Netlify Functions.",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2"
+  }
+}
