@@ -1,17 +1,14 @@
-// Verifica/imposta/cambia la password del Project Manager lato server, usando le
-// credenziali amministrative di Firebase (mai esposte al browser). L'hash della
+// Verifica/imposta/cambia la password del Project Manager lato server. L'hash della
 // password non viene MAI restituito al client: solo un esito true/false.
-const admin = require('firebase-admin');
+//
+// Usa direttamente le REST API di Firebase con un token OAuth2 firmato con la
+// credenziale di servizio (invece del pacchetto firebase-admin, troppo pesante per
+// il bundling delle Netlify Functions). Richiede la env var FIREBASE_SERVICE_ACCOUNT
+// (il contenuto del file JSON scaricato da Firebase Console → Account di servizio).
+const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
-function initAdmin() {
-    if (admin.apps.length) return;
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: 'https://logistic-torreserena-default-rtdb.europe-west1.firebasedatabase.app'
-    });
-}
+const DB_URL = 'https://logistic-torreserena-default-rtdb.europe-west1.firebasedatabase.app';
 
 function sha256(text) {
     return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
@@ -19,6 +16,45 @@ function sha256(text) {
 
 function json(statusCode, obj) {
     return { statusCode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) };
+}
+
+async function getAccessToken() {
+    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    const now = Math.floor(Date.now() / 1000);
+    const assertion = jwt.sign({
+        iss: sa.client_email,
+        scope: 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email',
+        aud: 'https://oauth2.googleapis.com/token',
+        iat: now,
+        exp: now + 3600
+    }, sa.private_key, { algorithm: 'RS256' });
+
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            assertion
+        })
+    });
+    const data = await res.json();
+    if (!data.access_token) throw new Error('Scambio token OAuth fallito: ' + JSON.stringify(data));
+    return data.access_token;
+}
+
+async function dbGet(path) {
+    const token = await getAccessToken();
+    const res = await fetch(`${DB_URL}/${path}.json`, { headers: { Authorization: `Bearer ${token}` } });
+    return res.json();
+}
+
+async function dbSet(path, value) {
+    const token = await getAccessToken();
+    await fetch(`${DB_URL}/${path}.json`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(value)
+    });
 }
 
 exports.handler = async (event) => {
@@ -33,17 +69,13 @@ exports.handler = async (event) => {
     }
 
     try {
-        initAdmin();
-        const ref = admin.database().ref('pmConfig/password');
-        const snap = await ref.once('value');
-        const stored = snap.val();
+        const stored = await dbGet('pmConfig/password');
 
         if (action === 'login') {
             if (!password || typeof password !== 'string') return json(400, { ok: false, error: 'missing_password' });
             if (!stored) {
-                // Bootstrap: nessuna password esiste ancora — quella inviata ora diventa quella definitiva.
                 if (password.length < 8) return json(400, { ok: false, error: 'too_short' });
-                await ref.set(sha256(password));
+                await dbSet('pmConfig/password', sha256(password));
                 return json(200, { ok: true, bootstrapped: true });
             }
             return json(200, { ok: sha256(password) === stored, bootstrapped: false });
@@ -53,7 +85,7 @@ exports.handler = async (event) => {
             if (!currentPassword || !newPassword) return json(400, { ok: false, error: 'missing_fields' });
             if (newPassword.length < 8) return json(400, { ok: false, error: 'too_short' });
             if (!stored || sha256(currentPassword) !== stored) return json(403, { ok: false, error: 'wrong_current' });
-            await ref.set(sha256(newPassword));
+            await dbSet('pmConfig/password', sha256(newPassword));
             return json(200, { ok: true });
         }
 
