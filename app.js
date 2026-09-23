@@ -2483,6 +2483,10 @@ window.openSetPeriodModal = function() {
         <button class="btn primary" onclick="savePlanningPeriod()" style="width:100%;justify-content:center;">
             <span class="material-symbols-outlined" style="font-size:16px;">save</span> Salva Periodo
         </button>
+        <button class="btn secondary" onclick="clearPlanningPeriod()" style="width:100%;justify-content:center;margin-top:8px;">
+            <span class="material-symbols-outlined" style="font-size:16px;">autorenew</span> Torna automatico (settimana corrente)
+        </button>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">"Automatico" mostra sempre la settimana in corso + la successiva, senza bisogno di aggiornarlo mai più. Imposta una data fissa solo se vuoi pianificare in anticipo un periodo specifico.</p>
     `);
 }
 
@@ -2495,6 +2499,15 @@ window.savePlanningPeriod = function() {
     modal.classList.add('hidden');
     updatePlanningHeaders();
     showToast('Periodo aggiornato!', 'success');
+}
+
+window.clearPlanningPeriod = function() {
+    if (!appData.settings) appData.settings = {};
+    appData.settings.planningStartDate = '';
+    saveData();
+    modal.classList.add('hidden');
+    updatePlanningHeaders();
+    showToast('Planning tornato automatico: seguirà sempre la settimana corrente.', 'success');
 }
 
 function renderEvents() {

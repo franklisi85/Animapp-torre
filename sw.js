@@ -1,8 +1,8 @@
-const CACHE_NAME = 'animapp-v62';
+const CACHE_NAME = 'animapp-v63';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
-    '/app.js?v=4.53',
+    '/app.js?v=4.54',
     '/style.css?v=19',
     '/sw.js',
     '/manifest.json',
