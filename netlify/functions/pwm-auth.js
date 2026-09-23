@@ -59,13 +59,26 @@ exports.handler = async (event) => {
 
     let body;
     try { body = JSON.parse(event.body); } catch { return json(400, { ok: false, error: 'invalid_json' }); }
-    const { action, password, newPassword, currentPassword } = body;
+    const { action, password, newPassword, currentPassword, superAdminPassword } = body;
 
     if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
         return json(500, { ok: false, error: 'server_not_configured' });
     }
 
     try {
+        // L'Amministratore Unico può reimpostare la password del Project Manager senza
+        // conoscerla, dimostrando di conoscere LA PROPRIA (verificata su pmConfig, non pwmConfig).
+        if (action === 'admin_reset') {
+            if (!superAdminPassword || !newPassword) return json(400, { ok: false, error: 'missing_fields' });
+            if (newPassword.length < 8) return json(400, { ok: false, error: 'too_short' });
+            const superAdminStored = await dbGet('pmConfig/password');
+            if (!superAdminStored || sha256(superAdminPassword) !== superAdminStored) {
+                return json(403, { ok: false, error: 'wrong_superadmin_password' });
+            }
+            await dbSet('pwmConfig/password', sha256(newPassword));
+            return json(200, { ok: true });
+        }
+
         const stored = await dbGet('pwmConfig/password');
 
         if (action === 'login') {

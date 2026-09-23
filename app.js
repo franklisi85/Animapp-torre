@@ -515,6 +515,24 @@ window.savePmPassword = async function() {
     document.getElementById('pm-password-input').value = '';
 };
 
+// L'Amministratore Unico può reimpostare la password del Project Manager senza conoscerla:
+// dimostra chi è confermando la PROPRIA password (verificata lato server su pmConfig).
+window.resetPwmPassword = async function() {
+    const superAdminPassword = (document.getElementById('pm-reset-pwm-superadmin-pwd')?.value || '').trim();
+    const newPassword = (document.getElementById('pm-reset-pwm-new-pwd')?.value || '').trim();
+    if (!superAdminPassword) { showToast('Inserisci la tua password (Amministratore Unico).', 'error'); return; }
+    if (!newPassword) { showToast('Inserisci la nuova password per il Project Manager.', 'error'); return; }
+    if (newPassword.length < 8) { showToast('La nuova password deve avere almeno 8 caratteri.', 'error'); return; }
+    const result = await callPwmAuth({ action: 'admin_reset', superAdminPassword, newPassword });
+    if (!result.ok) {
+        showToast(result.error === 'wrong_superadmin_password' ? 'La tua password non è corretta.' : 'Errore durante il reset.', 'error');
+        return;
+    }
+    showToast('Password Project Manager reimpostata.', 'success');
+    document.getElementById('pm-reset-pwm-superadmin-pwd').value = '';
+    document.getElementById('pm-reset-pwm-new-pwd').value = '';
+};
+
 // ==========================================
 // PROJECT MANAGER (ruolo limitato: solo password Staff/Capo Team dei progetti)
 // Login/cambio password verificati lato server esattamente come l'Amministratore Unico,

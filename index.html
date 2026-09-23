@@ -270,6 +270,17 @@
                     </div>
                 </div>
 
+                <div style="margin-top:14px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.1);">
+                    <p style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Reimposta la password del Project Manager (non serve conoscere quella attuale)</p>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <input type="password" id="pm-reset-pwm-superadmin-pwd" class="pm-pwd-input" placeholder="La TUA password (Amministratore Unico)" autocomplete="current-password">
+                        <div style="display:flex; gap:6px;">
+                            <input type="password" id="pm-reset-pwm-new-pwd" class="pm-pwd-input" placeholder="Nuova password Project Manager (min 8 caratteri)" autocomplete="new-password" style="flex:1;">
+                            <button type="button" class="btn small primary" onclick="resetPwmPassword()">Reimposta</button>
+                        </div>
+                    </div>
+                </div>
+
                 <button type="button" class="login-back-btn" onclick="pmLogoutToStep1()" style="margin-top:10px;">← Esci</button>
             </div>
 
@@ -866,7 +877,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.62"></script>
+    <script src="app.js?v=4.63"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>
