@@ -93,6 +93,27 @@ function findRegisteredUserByEmail(email) {
     return users.find(u => u && u.email === email) || null;
 }
 
+// Popola i contatti del Capo Equipe nella schermata "Accesso negato"
+function renderBlockedContactInfo() {
+    const container = document.getElementById('login-step3-contact');
+    if (!container) return;
+    const c = (appData.settings && appData.settings.adminContact) || {};
+    const linkStyle = 'display:flex; align-items:center; justify-content:center; gap:8px; padding:9px 14px; border-radius:10px; background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.85); text-decoration:none; font-size:0.85rem; font-weight:500;';
+    let html = '';
+    if (c.email) {
+        html += `<a href="mailto:${escHtml(c.email)}" style="${linkStyle}" target="_blank" rel="noopener"><span class="material-symbols-outlined" style="font-size:18px;">mail</span> ${escHtml(c.email)}</a>`;
+    }
+    if (c.whatsapp) {
+        const digits = c.whatsapp.replace(/[^\d]/g, '');
+        if (digits) html += `<a href="https://wa.me/${digits}" style="${linkStyle}" target="_blank" rel="noopener"><span class="material-symbols-outlined" style="font-size:18px;">chat</span> WhatsApp: ${escHtml(c.whatsapp)}</a>`;
+    }
+    if (c.telegram) {
+        const handle = c.telegram.replace(/[^A-Za-z0-9_]/g, '');
+        if (handle) html += `<a href="https://t.me/${handle}" style="${linkStyle}" target="_blank" rel="noopener"><span class="material-symbols-outlined" style="font-size:18px;">send</span> Telegram: @${escHtml(handle)}</a>`;
+    }
+    container.innerHTML = html;
+}
+
 // Riconoscimento email in tempo reale: se l'utente è già registrato,
 // nasconde i campi Nome/Cognome (tanto verrebbero ignorati) per evitare
 // di fargli "rifare tutta la procedura" ogni volta che perde la sessione locale.
@@ -146,6 +167,7 @@ window.loginCheckIdentity = function() {
         privacyErrEl.classList.add('hidden');
 
         if ((appData.blockedEmails || []).includes(email)) {
+            renderBlockedContactInfo();
             showLoginStep('login-step-3'); return;
         }
 
@@ -663,7 +685,7 @@ const DEFAULT_DATA = {
     files: [],
     registeredUsers: [],
     blockedEmails: [],
-    settings: { blockRequests: false },
+    settings: { blockRequests: false, adminContact: { email: '', whatsapp: '', telegram: '' } },
     dashboardSectionNames: { avvisi: 'Avvisi', odg: 'Ordine del Giorno', richieste: 'Le Mie Richieste' }
 };
 
@@ -826,6 +848,7 @@ db.ref('appData').on('value', (snapshot) => {
         if (!appData.notifications) appData.notifications = [];
         if (!appData.files) appData.files = [];
         if (!appData.settings) appData.settings = { blockRequests: false };
+        if (!appData.settings.adminContact) appData.settings.adminContact = { email: '', whatsapp: '', telegram: '' };
         if (!appData.sectorGroups) appData.sectorGroups = [];
         if (!appData.operatori) appData.operatori = [];
         if (!appData.avvisi) appData.avvisi = [];
@@ -1788,12 +1811,36 @@ window.saveAssignedGroups = function(userId) {
 const ROLE_LABELS = { admin: 'Capo Equipe', responsabile: 'Responsabile', animatore: 'Animatore', operatore: 'Operatore' };
 const ROLE_COLORS = { admin: 'var(--danger)', responsabile: 'var(--primary)', animatore: 'var(--secondary)', operatore: 'var(--accent)' };
 
+// Contatti Capo Equipe mostrati agli utenti bloccati nella schermata di login
+function renderAdminContactSettings() {
+    const emailEl = document.getElementById('admin-contact-email');
+    const waEl    = document.getElementById('admin-contact-whatsapp');
+    const tgEl    = document.getElementById('admin-contact-telegram');
+    if (!emailEl) return;
+    const c = (appData.settings && appData.settings.adminContact) || {};
+    if (document.activeElement !== emailEl) emailEl.value = c.email || '';
+    if (document.activeElement !== waEl) waEl.value = c.whatsapp || '';
+    if (document.activeElement !== tgEl) tgEl.value = c.telegram || '';
+}
+
+window.saveAdminContact = function() {
+    if (currentRole !== 'admin') return;
+    const email    = (document.getElementById('admin-contact-email')?.value || '').trim();
+    const whatsapp = (document.getElementById('admin-contact-whatsapp')?.value || '').trim();
+    const telegram = (document.getElementById('admin-contact-telegram')?.value || '').trim();
+    if (!appData.settings) appData.settings = {};
+    appData.settings.adminContact = { email, whatsapp, telegram };
+    saveData();
+    showToast('Contatti Capo Equipe aggiornati.', 'success');
+};
+
 function renderRegisteredUsers() {
     const approvedContainer = document.getElementById('registered-users-list');
     const blockedContainer  = document.getElementById('blocked-users-list');
     const blockedSection    = document.getElementById('blocked-users-section');
     if (!approvedContainer) return;
 
+    renderAdminContactSettings();
     wireUsersSearch();
     const users   = appData.registeredUsers || [];
     const blocked = appData.blockedEmails   || [];
