@@ -215,6 +215,10 @@ function showLoginStep(stepId) {
     });
     const target = document.getElementById(stepId);
     if (target) { target.classList.remove('hidden'); target.style.display = 'flex'; }
+    // I pannelli di lavoro (Amministratore Unico / Project Manager) usano una card larga,
+    // il resto del login resta lo stretto form centrale di sempre.
+    const isWorkPanel = stepId === 'login-step-pm-projects' || stepId === 'login-step-pwm-projects';
+    if (loginCard) loginCard.classList.toggle('wide-panel', isWorkPanel);
 }
 
 // Cerca un utente già registrato per email (case/spazi-insensitive)
@@ -636,6 +640,16 @@ function renderPasswordManagerPanel() {
     });
 }
 
+// Mostra/nasconde i campi password di una card progetto, per tenere la vista ordinata
+// (password visibili solo quando servono, non sempre aperte per ogni progetto).
+window.togglePwdFields = function(fieldsId, btn) {
+    const el = document.getElementById(fieldsId);
+    if (!el) return;
+    const open = el.classList.toggle('open');
+    const caret = btn?.querySelector('.toggle-caret');
+    if (caret) caret.style.transform = open ? 'rotate(180deg)' : '';
+};
+
 // Elenco progetti mostrato all'Amministratore Unico: entrare, rinominare e impostare
 // le password di ciascun progetto SENZA doverci entrare dentro.
 function renderProjectsPanel() {
@@ -664,17 +678,23 @@ function renderProjectsPanel() {
                 <div id="pm-stats-${escHtml(id)}" style="display:flex; flex-wrap:wrap; gap:12px; font-size:0.74rem; color:rgba(255,255,255,0.5);">
                     <span>Caricamento statistiche…</span>
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-                    <div>
-                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Staff <span id="pm-team-status-${escHtml(id)}"></span></label>
-                        <input type="text" id="pm-team-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Lascia vuoto per non cambiare">
+                <button type="button" class="pm-pwd-toggle" onclick="togglePwdFields('pm-pwdfields-${escHtml(id)}', this)">
+                    <span class="material-symbols-outlined" style="font-size:15px;">key</span>
+                    Gestisci password <span class="material-symbols-outlined toggle-caret" style="font-size:15px;">expand_more</span>
+                </button>
+                <div id="pm-pwdfields-${escHtml(id)}" class="pm-pwd-fields">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                        <div>
+                            <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Staff <span id="pm-team-status-${escHtml(id)}"></span></label>
+                            <input type="text" id="pm-team-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Lascia vuoto per non cambiare">
+                        </div>
+                        <div>
+                            <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Capo Team <span id="pm-capo-status-${escHtml(id)}"></span></label>
+                            <input type="text" id="pm-capo-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Lascia vuoto per non cambiare">
+                        </div>
                     </div>
-                    <div>
-                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Capo Team <span id="pm-capo-status-${escHtml(id)}"></span></label>
-                        <input type="text" id="pm-capo-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Lascia vuoto per non cambiare">
-                    </div>
+                    <button type="button" class="login-back-btn" style="margin-top:8px; align-self:flex-end; font-size:0.76rem;" onclick="savePmProjectPasswords('${escHtml(id)}')">Salva password</button>
                 </div>
-                <button type="button" class="login-back-btn" style="align-self:flex-end; font-size:0.76rem;" onclick="savePmProjectPasswords('${escHtml(id)}')">Salva password</button>
             </div>
         `).join('');
 

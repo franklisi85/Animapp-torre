@@ -522,7 +522,76 @@ th { background-color: #f8fafc; font-weight: 600; color: var(--text-muted); font
     text-align: center;
     animation: cardEntrance 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     flex-shrink: 0;
+    transition: max-width 0.25s ease;
 }
+
+/* Pannelli di lavoro (Amministratore Unico / Project Manager): spazio largo, non un form stretto */
+.login-card.wide-panel {
+    max-width: 1180px;
+    max-height: 88vh;
+    overflow-y: auto;
+}
+
+.pm-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    text-align: left;
+}
+
+.pm-panel-header h2 {
+    font-size: 1.3rem;
+    color: #f8fafc;
+    margin: 0;
+}
+
+.pm-panel-header p {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.82rem;
+    margin: 4px 0 0;
+}
+
+.pm-projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+    margin-bottom: 8px;
+}
+
+.pm-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    text-align: left;
+}
+
+.pm-settings-box {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 16px;
+}
+
+.pm-pwd-toggle {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.76rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+}
+
+.pm-pwd-toggle:hover { color: rgba(255, 255, 255, 0.85); }
+.pm-pwd-toggle .toggle-caret { transition: transform 0.2s ease; }
+
+.pm-pwd-fields { display: none; margin-top: 8px; }
+.pm-pwd-fields.open { display: block; }
 
 @keyframes cardEntrance {
     from { opacity: 0; transform: translateY(30px) scale(0.95); }
