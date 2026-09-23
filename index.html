@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-    <link rel="stylesheet" href="style.css?v=17">
+    <link rel="stylesheet" href="style.css?v=18">
     
     <!-- PWA Config -->
     <link rel="manifest" href="manifest.json">
@@ -155,17 +155,20 @@
             </div>
             <!-- Step 1: Identità -->
             <div id="login-step-1">
-                <div class="login-input-group" style="margin-bottom:10px;">
-                    <span class="material-symbols-outlined input-icon">person</span>
-                    <input type="text" id="login-firstname" placeholder="Nome" autocomplete="given-name">
-                </div>
-                <div class="login-input-group" style="margin-bottom:10px;">
-                    <span class="material-symbols-outlined input-icon">badge</span>
-                    <input type="text" id="login-lastname" placeholder="Cognome" autocomplete="family-name">
-                </div>
                 <div class="login-input-group" style="margin-bottom:4px;">
                     <span class="material-symbols-outlined input-icon">mail</span>
-                    <input type="email" id="login-email" placeholder="Email" autocomplete="email">
+                    <input type="email" id="login-email" placeholder="Email" autocomplete="email" oninput="window.checkKnownEmail && window.checkKnownEmail()">
+                </div>
+                <p id="login-step1-welcome" class="hidden" style="color:var(--secondary,#10b981);font-size:0.82rem;margin:4px 0 10px;text-align:left;">Bentornato! Inserisci solo la password per continuare.</p>
+                <div id="login-name-fields">
+                    <div class="login-input-group" style="margin-bottom:10px;">
+                        <span class="material-symbols-outlined input-icon">person</span>
+                        <input type="text" id="login-firstname" placeholder="Nome" autocomplete="given-name">
+                    </div>
+                    <div class="login-input-group" style="margin-bottom:10px;">
+                        <span class="material-symbols-outlined input-icon">badge</span>
+                        <input type="text" id="login-lastname" placeholder="Cognome" autocomplete="family-name">
+                    </div>
                 </div>
                 <p id="login-step1-error" class="login-error hidden" style="margin-bottom:4px;">Compila tutti i campi con una email valida.</p>
                 <div style="margin: 8px 0 4px; text-align:left;">
@@ -692,7 +695,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.48"></script>
+    <script src="app.js?v=4.49"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>

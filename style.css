@@ -622,6 +622,11 @@ th { background-color: #f8fafc; font-weight: 600; color: var(--text-muted); font
     display: none;
 }
 
+#login-step1-welcome.hidden,
+#login-name-fields.hidden {
+    display: none;
+}
+
 /* Shake on error */
 @keyframes shakeError {
     0%, 100% { transform: translateX(0); }

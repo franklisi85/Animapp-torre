@@ -85,20 +85,57 @@ function showLoginStep(stepId) {
     if (target) { target.classList.remove('hidden'); target.style.display = 'flex'; }
 }
 
+// Cerca un utente già registrato per email (case/spazi-insensitive)
+function findRegisteredUserByEmail(email) {
+    if (!email) return null;
+    const usersRaw = appData.registeredUsers || [];
+    const users = Array.isArray(usersRaw) ? usersRaw : Object.values(usersRaw);
+    return users.find(u => u && u.email === email) || null;
+}
+
+// Riconoscimento email in tempo reale: se l'utente è già registrato,
+// nasconde i campi Nome/Cognome (tanto verrebbero ignorati) per evitare
+// di fargli "rifare tutta la procedura" ogni volta che perde la sessione locale.
+window.checkKnownEmail = function() {
+    const email = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
+    const nameFields = document.getElementById('login-name-fields');
+    const welcomeEl = document.getElementById('login-step1-welcome');
+    if (!nameFields) return;
+    const existing = email.includes('@') ? findRegisteredUserByEmail(email) : null;
+    if (existing) {
+        nameFields.classList.add('hidden');
+        if (welcomeEl) { welcomeEl.textContent = `Bentornato, ${existing.firstName}! Inserisci solo la password per continuare.`; welcomeEl.classList.remove('hidden'); }
+    } else {
+        nameFields.classList.remove('hidden');
+        if (welcomeEl) welcomeEl.classList.add('hidden');
+    }
+};
+
 window.loginCheckIdentity = function() {
     try {
-        const firstName = (document.getElementById('login-firstname')?.value || '').trim();
-        const lastName  = (document.getElementById('login-lastname')?.value || '').trim();
         const email     = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
         const errEl = document.getElementById('login-step1-error');
         const privacyEl = document.getElementById('privacy-consent');
         const privacyErrEl = document.getElementById('login-privacy-error');
 
-        if (!firstName || !lastName || !email || !email.includes('@')) {
-            errEl.classList.remove('hidden'); return;
-        }
         if (!firebaseDataLoaded) {
             errEl.textContent = 'Connessione in corso, riprova tra un secondo...';
+            errEl.classList.remove('hidden'); return;
+        }
+
+        if (!email || !email.includes('@')) {
+            errEl.textContent = 'Inserisci una email valida.';
+            errEl.classList.remove('hidden'); return;
+        }
+
+        const existing = findRegisteredUserByEmail(email);
+
+        // Nome e Cognome servono solo per una registrazione nuova:
+        // un utente già noto viene riconosciuto dalla sola email.
+        const firstName = (document.getElementById('login-firstname')?.value || '').trim();
+        const lastName  = (document.getElementById('login-lastname')?.value || '').trim();
+        if (!existing && (!firstName || !lastName)) {
+            errEl.textContent = 'Compila tutti i campi con una email valida.';
             errEl.classList.remove('hidden'); return;
         }
         errEl.textContent = 'Compila tutti i campi con una email valida.';
@@ -112,9 +149,6 @@ window.loginCheckIdentity = function() {
             showLoginStep('login-step-3'); return;
         }
 
-        const usersRaw = appData.registeredUsers || [];
-        const users = Array.isArray(usersRaw) ? usersRaw : Object.values(usersRaw);
-        const existing = users.find(u => u && u.email === email);
         const welcome = document.getElementById('login-step2-welcome');
 
         if (existing) {
@@ -767,6 +801,7 @@ firebase.auth().onAuthStateChanged((user) => {
 function startFirebaseListener() {
 db.ref('appData').on('value', (snapshot) => {
     firebaseDataLoaded = true;
+    if (typeof window.checkKnownEmail === 'function') window.checkKnownEmail();
     if (snapshot.exists()) {
         appData = snapshot.val();
         
@@ -1820,10 +1855,10 @@ function renderRegisteredUsers() {
                     <option value="responsabile" ${u.role==='responsabile'?'selected':''}>Responsabile</option>
                     <option value="operatore" ${u.role==='operatore'?'selected':''}>Operatore</option>
                 </select>
-                <button class="btn-icon" onclick="deleteUserOnly('${escHtml(u._fbKey || String(u.id))}')" title="Elimina account (senza bloccare)" style="color:var(--text-muted);">
-                    <span class="material-symbols-outlined" style="font-size:18px;">delete</span>
+                <button class="btn-icon" onclick="deleteUserOnly('${escHtml(u._fbKey || String(u.id))}')" title="Elimina doppione — NON blocca l'email, potrà registrarsi di nuovo liberamente" style="color:var(--text-muted);">
+                    <span class="material-symbols-outlined" style="font-size:18px;">content_copy</span>
                 </button>
-                <button class="btn-icon delete" onclick="deleteRegisteredUser(${u.id})" title="Rimuovi e blocca">
+                <button class="btn-icon delete" onclick="deleteRegisteredUser(${u.id})" title="Rimuovi e BLOCCA — non potrà rientrare senza il tuo permesso (a meno di usare un'altra email)">
                     <span class="material-symbols-outlined" style="font-size:18px;">person_off</span>
                 </button>
             </div>
@@ -1852,7 +1887,7 @@ window.deleteRegisteredUser = function(id) {
     if (currentRole !== 'admin') return;
     const user = (appData.registeredUsers || []).find(u => u.id === id);
     if (!user) return;
-    if (!confirm(`Rimuovere ${user.firstName} ${user.lastName}? La sua email verrà bloccata e non potrà più accedere.`)) return;
+    if (!confirm(`Rimuovere ${user.firstName} ${user.lastName}? La sua email verrà bloccata: potrà rientrare solo se lo sblocchi tu, oppure se usa un'altra email.`)) return;
     if (user.role === 'responsabile') {
         const fullName = `${user.firstName} ${user.lastName}`;
         (appData.sectors || []).forEach(sec => { if (sec.manager === fullName) sec.manager = ''; });
@@ -1869,7 +1904,7 @@ window.deleteUserOnly = function(fbKey) {
     if (currentRole !== 'admin') return;
     const user = (appData.registeredUsers || []).find(u => (u._fbKey || String(u.id)) === fbKey);
     if (!user) return;
-    if (!confirm(`Eliminare l'account di ${user.firstName} ${user.lastName}?\nL'email NON verrà bloccata (usa questa opzione per rimuovere un doppione).`)) return;
+    if (!confirm(`Eliminare l'account doppione di ${user.firstName} ${user.lastName}?\nATTENZIONE: l'email NON verrà bloccata — potrà registrarsi di nuovo liberamente. Usa "Rimuovi e blocca" se invece vuoi vietargli l'accesso.`)) return;
     // Rimuove solo il nodo esatto su Firebase — non tocca nessun altro utente
     db.ref(`appData/registeredUsers/${fbKey}`).remove();
     // Aggiorna l'array locale rimuovendo solo l'entry con questa chiave
