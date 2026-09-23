@@ -602,9 +602,11 @@ window.savePwmPassword = async function() {
     document.getElementById('pwm-password-input').value = '';
 };
 
-// Pannello del Project Manager: SOLO nome progetto + password Staff/Capo Team.
-// Nessun pulsante di rinomina/duplica/elimina/entra, nessuna statistica: il Project
-// Manager non ha visibilità sui dati dei progetti, solo sulle loro credenziali di accesso.
+// Pannello del Project Manager: stessa visione completa dei progetti dell'Amministratore
+// Unico (statistiche + possibilità di entrare), ma senza i pulsanti di rinomina/duplica/
+// elimina e senza accesso a sicurezza/Telegram del progetto (una volta dentro, quella
+// sezione resta visibile solo all'Amministratore Unico) — il Project Manager può creare/
+// cambiare solo le password Staff e Capo Team.
 function renderPasswordManagerPanel() {
     const list = document.getElementById('pwm-projects-list');
     if (!list) return;
@@ -613,7 +615,13 @@ function renderPasswordManagerPanel() {
         ? '<p style="color:rgba(255,255,255,0.5); font-size:0.85rem; margin-bottom:10px;">Nessun progetto ancora creato.</p>'
         : ids.map(id => `
             <div class="project-picker-card" style="flex-direction:column; align-items:stretch; gap:8px;">
-                <span class="name">${escHtml(projectsListCache[id].name || id)}</span>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                    <span class="name">${escHtml(projectsListCache[id].name || id)}</span>
+                    <button type="button" class="btn small primary" onclick="enterProjectAsManager('${escHtml(id)}')">Entra</button>
+                </div>
+                <div id="pwm-stats-${escHtml(id)}" style="display:flex; flex-wrap:wrap; gap:12px; font-size:0.74rem; color:rgba(255,255,255,0.5);">
+                    <span>Caricamento statistiche…</span>
+                </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
                     <div>
                         <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Staff <span id="pwm-team-status-${escHtml(id)}"></span></label>
@@ -630,12 +638,33 @@ function renderPasswordManagerPanel() {
 
     ids.forEach(async (id) => {
         try {
-            const snap = await db.ref(`projects/${id}/appData/settings`).once('value');
-            const s = snap.val() || {};
+            const [settingsSnap, usersSnap, notifSnap, eventsSnap] = await Promise.all([
+                db.ref(`projects/${id}/appData/settings`).once('value'),
+                db.ref(`projects/${id}/appData/registeredUsers`).once('value'),
+                db.ref(`projects/${id}/appData/notifications`).once('value'),
+                db.ref(`projects/${id}/appData/events`).once('value')
+            ]);
+            const s = settingsSnap.val() || {};
+            const count = (snap) => { const v = snap.val(); return v ? Object.keys(v).length : 0; };
+
             const teamStatus = document.getElementById(`pwm-team-status-${id}`);
             const capoStatus = document.getElementById(`pwm-capo-status-${id}`);
             if (teamStatus) teamStatus.textContent = s.teamPassword ? '✓ impostata' : '⚠ non impostata';
             if (capoStatus) capoStatus.textContent = s.capoTeamPassword ? '✓ impostata' : '⚠ non impostata';
+
+            const statsEl = document.getElementById(`pwm-stats-${id}`);
+            if (statsEl) {
+                const passwordsOk = !!(s.teamPassword && s.capoTeamPassword);
+                const telegramOk = !!(s.telegram && (s.telegram.botTokenMagazzino || s.telegram.botTokenEventi));
+                const chip = (icon, text, color) => `<span style="display:flex; align-items:center; gap:3px; ${color ? `color:${color};` : ''}"><span class="material-symbols-outlined" style="font-size:14px;">${icon}</span>${text}</span>`;
+                statsEl.innerHTML = [
+                    chip('group', `${count(usersSnap)} utenti`),
+                    chip('inventory_2', `${count(notifSnap)} richieste in sospeso`, count(notifSnap) > 0 ? '#fbbf24' : null),
+                    chip('event', `${count(eventsSnap)} eventi in calendario`),
+                    chip(passwordsOk ? 'lock' : 'lock_open', passwordsOk ? 'Password ok' : 'Password mancanti', passwordsOk ? '#4ade80' : '#f87171'),
+                    chip('send', telegramOk ? 'Telegram attivo' : 'Telegram non configurato', telegramOk ? '#4ade80' : null)
+                ].join('');
+            }
         } catch(e) {}
     });
 }
@@ -777,7 +806,7 @@ window.savePmProjectPasswords = async function(id, fromPwm) {
 
 window.enterProjectAsManager = async function(pid) {
     await attachProjectListener(pid);
-    finalizeLogin('admin', 'Amministratore Unico', '');
+    finalizeLogin('admin', isPasswordManager ? 'Project Manager' : 'Amministratore Unico', '');
 };
 
 window.promptCreateProject = async function() {
@@ -878,7 +907,8 @@ window.pwmLogoutToStep1 = function() {
     showLoginStep('login-step-1');
 };
 
-// L'Amministratore Unico torna all'elenco progetti senza dover reinserire la password
+// L'Amministratore Unico (o il Project Manager) torna al proprio elenco progetti senza
+// dover reinserire la password.
 window.backToProjectsList = function() {
     if (_appDataRef) { _appDataRef.off(); _appDataRef = null; }
     if (typeof chatListener !== 'undefined' && chatListener) { try { db.ref(dbPath('chatMessages')).off('value', chatListener); } catch(e) {} chatListener = null; }
@@ -890,8 +920,13 @@ window.backToProjectsList = function() {
     appContainer.classList.add('hidden');
     loginGate.classList.remove('hidden');
     loginGate.style.display = '';
-    showLoginStep('login-step-pm-projects');
-    renderProjectsPanel();
+    if (isPasswordManager) {
+        showLoginStep('login-step-pwm-projects');
+        renderPasswordManagerPanel();
+    } else {
+        showLoginStep('login-step-pm-projects');
+        renderProjectsPanel();
+    }
 };
 
 window.backToStep1 = function() {
@@ -1359,7 +1394,7 @@ function applyRole() {
     document.body.classList.add(`view-as-${currentRole}`);
 
     const btnBackToProjects = document.getElementById('btn-back-to-projects');
-    if (btnBackToProjects) btnBackToProjects.style.display = (isSuperAdmin && currentRole === 'admin') ? '' : 'none';
+    if (btnBackToProjects) btnBackToProjects.style.display = ((isSuperAdmin || isPasswordManager) && currentRole === 'admin') ? '' : 'none';
 
     if (currentRole === 'admin') {
         userAvatar.textContent = "CE";
