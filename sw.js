@@ -1,4 +1,4 @@
-const CACHE_NAME = 'animapp-v59';
+const CACHE_NAME = 'animapp-v60';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -30,7 +30,7 @@ self.addEventListener('fetch', (event) => {
     if (url.origin !== self.location.origin) return;
 
     event.respondWith(
-        caches.match(event.request, { ignoreSearch: true }).then(cached => {
+        caches.match(event.request).then(cached => {
             if (cached) return cached;
             return fetch(event.request).then(response => {
                 if (response && response.status === 200) {
