@@ -1,6 +1,6 @@
 {
-  "name": "AnimApp",
-  "short_name": "AnimApp",
+  "name": "GestEven",
+  "short_name": "GestEven",
   "description": "App gestionale logistica eventi e magazzino per il team",
   "start_url": "/",
   "display": "standalone",
