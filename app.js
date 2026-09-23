@@ -30,9 +30,12 @@
 // ==========================================
 // LOGIN GATE - AUTHENTICATION SYSTEM
 // ==========================================
+// Valori STORICI usati solo una tantum dalla migrazione dei dati pre-multi-progetto
+// (migrateLegacyProject): non sono più un fallback attivo per nessun login — ogni progetto
+// richiede una propria password Staff/Capo Team esplicita (impostata alla creazione).
 const LOGIN_PASSWORDS = {
-    team: "TeamStaff2026",       // fallback se un progetto non ha una password staff propria
-    admin: "Torre2026"           // fallback se un progetto non ha una password Capo Team propria
+    team: "TeamStaff2026",
+    admin: "Torre2026"
     // NB: nessun fallback per il Project Manager — sarebbe una password universale valida
     // per chiunque legga il codice sorgente (pubblico). Vedi pmConfig/password + bootstrap.
 };
@@ -68,6 +71,29 @@ function storagePath(sub) {
 // Chiave Firebase valida per email (. # $ [ ] non ammessi nelle chiavi RTDB)
 function emailKey(email) {
     return (email || '').replace(/[.#$\[\]]/g, ',');
+}
+
+// ==========================================
+// PASSWORD HASHING — le password di progetto/PM non vengono più salvate in chiaro
+// ==========================================
+async function sha256Hex(text) {
+    const enc = new TextEncoder().encode(text);
+    const buf = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function looksHashed(value) {
+    return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+}
+// Verifica una password contro un valore salvato che può essere un hash (nuovo) o testo
+// in chiaro (dati storici pre-hashing): se in chiaro e corretto, la migra automaticamente
+// all'hash. Ritorna { ok, migratedTo } — migratedTo è il nuovo hash da salvare, se serve.
+async function verifyAndMaybeMigrate(inputPwd, storedValue) {
+    if (!storedValue) return { ok: false, migratedTo: null };
+    if (looksHashed(storedValue)) {
+        return { ok: (await sha256Hex(inputPwd)) === storedValue, migratedTo: null };
+    }
+    const ok = inputPwd === storedValue;
+    return { ok, migratedTo: ok ? await sha256Hex(inputPwd) : null };
 }
 
 // Indice leggero { [projectId]: {name, createdAt} } — sempre caricato, usato per i menu a tendina
@@ -318,17 +344,24 @@ window.loginCheckIdentity = async function() {
     }
 };
 
-window.loginWithPassword = function() {
+window.loginWithPassword = async function() {
     const pwd = document.getElementById('login-team-pwd')?.value || '';
     const errEl = document.getElementById('login-step2-error');
-    const expectedPwd = (appData.settings && appData.settings.teamPassword) || LOGIN_PASSWORDS.team;
-    if (pwd !== expectedPwd) {
+    const stored = appData.settings && appData.settings.teamPassword;
+    if (!stored) {
+        errEl.textContent = 'Questo progetto non ha ancora una password Staff configurata. Contatta il Project Manager.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+    const { ok, migratedTo } = await verifyAndMaybeMigrate(pwd, stored);
+    if (!ok) {
         errEl.textContent = 'Password errata. Riprova.';
         errEl.classList.remove('hidden');
         document.getElementById('login-team-pwd').value = '';
         document.getElementById('login-team-pwd').focus();
         return;
     }
+    if (migratedTo) { appData.settings.teamPassword = migratedTo; saveData(); }
     errEl.classList.add('hidden');
     if (!pendingLoginUser) {
         errEl.textContent = 'Errore: sessione scaduta. Torna al passo 1.';
@@ -397,9 +430,10 @@ window.loginAdmin = async function() {
     }
     try {
         const snap = await db.ref(`projects/${pid}/appData/settings/capoTeamPassword`).once('value');
-        const expected = snap.val() || LOGIN_PASSWORDS.admin;
-        if (pwd !== expected) {
-            errEl.textContent = 'Password errata.';
+        const stored = snap.val();
+        const { ok, migratedTo } = await verifyAndMaybeMigrate(pwd, stored);
+        if (!stored || !ok) {
+            errEl.textContent = stored ? 'Password errata.' : 'Questo progetto non ha ancora una password Capo Team configurata.';
             errEl.classList.remove('hidden');
             document.getElementById('login-admin-pwd').value = '';
             document.getElementById('login-admin-pwd').focus();
@@ -407,6 +441,7 @@ window.loginAdmin = async function() {
             setTimeout(() => loginCard.classList.remove('shake'), 500);
             return;
         }
+        if (migratedTo) db.ref(`projects/${pid}/appData/settings/capoTeamPassword`).set(migratedTo);
         errEl.classList.add('hidden');
         await attachProjectListener(pid);
         finalizeLogin('admin', 'Capo Team', '');
@@ -450,7 +485,7 @@ window.loginProjectManager = async function() {
             errEl.classList.remove('hidden');
             return;
         }
-        await db.ref('pmConfig/password').set(pwd);
+        await db.ref('pmConfig/password').set(await sha256Hex(pwd));
         errEl.classList.add('hidden');
         isProjectManager = true;
         localStorage.setItem('logistic_torre_pm', 'true');
@@ -459,12 +494,13 @@ window.loginProjectManager = async function() {
         return;
     }
 
-    let expected = null;
+    let stored = null;
     try {
         const snap = await db.ref('pmConfig/password').once('value');
-        expected = snap.val();
+        stored = snap.val();
     } catch(e) {}
-    if (!expected || pwd !== expected) {
+    const { ok, migratedTo } = await verifyAndMaybeMigrate(pwd, stored);
+    if (!ok) {
         errEl.textContent = 'Password errata.';
         errEl.classList.remove('hidden');
         document.getElementById('login-pm-pwd').value = '';
@@ -473,6 +509,7 @@ window.loginProjectManager = async function() {
         setTimeout(() => loginCard.classList.remove('shake'), 500);
         return;
     }
+    if (migratedTo) db.ref('pmConfig/password').set(migratedTo);
     errEl.classList.add('hidden');
     isProjectManager = true;
     localStorage.setItem('logistic_torre_pm', 'true');
@@ -480,10 +517,11 @@ window.loginProjectManager = async function() {
     renderProjectsPanel();
 };
 
-window.savePmPassword = function() {
+window.savePmPassword = async function() {
     const pwd = (document.getElementById('pm-password-input')?.value || '').trim();
     if (!pwd) { showToast('Inserisci una password.', 'error'); return; }
-    db.ref('pmConfig/password').set(pwd);
+    if (pwd.length < 8) { showToast('La password deve avere almeno 8 caratteri.', 'error'); return; }
+    await db.ref('pmConfig/password').set(await sha256Hex(pwd));
     showToast('Password Project Manager aggiornata.', 'success');
     document.getElementById('pm-password-input').value = '';
 };
@@ -515,27 +553,29 @@ function renderProjectsPanel() {
                 </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
                     <div>
-                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Staff</label>
-                        <input type="text" id="pm-team-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Password Staff">
+                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Staff <span id="pm-team-status-${escHtml(id)}"></span></label>
+                        <input type="text" id="pm-team-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Lascia vuoto per non cambiare">
                     </div>
                     <div>
-                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Capo Team</label>
-                        <input type="text" id="pm-capo-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Password Capo Team">
+                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Capo Team <span id="pm-capo-status-${escHtml(id)}"></span></label>
+                        <input type="text" id="pm-capo-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Lascia vuoto per non cambiare">
                     </div>
                 </div>
                 <button type="button" class="login-back-btn" style="align-self:flex-end; font-size:0.76rem;" onclick="savePmProjectPasswords('${escHtml(id)}')">Salva password</button>
             </div>
         `).join('');
 
-    // Precompila le password di ciascun progetto (lettura leggera, solo il nodo settings)
+    // Per sicurezza non precompiliamo mai i campi con la password reale (né in chiaro né con
+    // l'hash): mostriamo solo se è impostata o meno. I campi restano vuoti finché non si scrive
+    // una password nuova da salvare.
     ids.forEach(async (id) => {
         try {
             const snap = await db.ref(`projects/${id}/appData/settings`).once('value');
             const s = snap.val() || {};
-            const teamEl = document.getElementById(`pm-team-pwd-${id}`);
-            const capoEl = document.getElementById(`pm-capo-pwd-${id}`);
-            if (teamEl && document.activeElement !== teamEl) teamEl.value = s.teamPassword || '';
-            if (capoEl && document.activeElement !== capoEl) capoEl.value = s.capoTeamPassword || '';
+            const teamStatus = document.getElementById(`pm-team-status-${id}`);
+            const capoStatus = document.getElementById(`pm-capo-status-${id}`);
+            if (teamStatus) teamStatus.textContent = s.teamPassword ? '✓ impostata' : '⚠ non impostata';
+            if (capoStatus) capoStatus.textContent = s.capoTeamPassword ? '✓ impostata' : '⚠ non impostata';
         } catch(e) {}
     });
 
@@ -570,8 +610,15 @@ window.promptDeleteProject = async function(id) {
 window.savePmProjectPasswords = async function(id) {
     const teamPassword = (document.getElementById(`pm-team-pwd-${id}`)?.value || '').trim();
     const capoTeamPassword = (document.getElementById(`pm-capo-pwd-${id}`)?.value || '').trim();
-    await db.ref(`projects/${id}/appData/settings`).update({ teamPassword, capoTeamPassword });
+    if (!teamPassword && !capoTeamPassword) { showToast('Scrivi almeno una password da cambiare.', 'error'); return; }
+    const updates = {};
+    if (teamPassword) updates.teamPassword = await sha256Hex(teamPassword);
+    if (capoTeamPassword) updates.capoTeamPassword = await sha256Hex(capoTeamPassword);
+    await db.ref(`projects/${id}/appData/settings`).update(updates);
+    document.getElementById(`pm-team-pwd-${id}`).value = '';
+    document.getElementById(`pm-capo-pwd-${id}`).value = '';
     showToast('Password del progetto aggiornate.', 'success');
+    renderProjectsPanel();
 };
 
 window.enterProjectAsManager = async function(pid) {
@@ -582,9 +629,17 @@ window.enterProjectAsManager = async function(pid) {
 window.promptCreateProject = async function() {
     const name = prompt('Nome del nuovo progetto (es. nome del villaggio o stagione):');
     if (!name || !name.trim()) return;
+    const teamPassword = prompt(`Password Staff per "${name.trim()}" (per la registrazione/accesso di animatori e responsabili) — obbligatoria, min. 6 caratteri:`);
+    if (!teamPassword || teamPassword.trim().length < 6) { showToast('Creazione annullata: password Staff mancante o troppo corta.', 'error'); return; }
+    const capoTeamPassword = prompt(`Password Capo Team per "${name.trim()}" — obbligatoria, min. 6 caratteri:`);
+    if (!capoTeamPassword || capoTeamPassword.trim().length < 6) { showToast('Creazione annullata: password Capo Team mancante o troppo corta.', 'error'); return; }
+
     const id = 'p' + generateId();
     await db.ref('projectsList/' + id).set({ name: name.trim(), createdAt: new Date().toISOString() });
-    await db.ref('projects/' + id + '/appData').set(emptyProjectAppData());
+    const newAppData = emptyProjectAppData();
+    newAppData.settings.teamPassword = await sha256Hex(teamPassword.trim());
+    newAppData.settings.capoTeamPassword = await sha256Hex(capoTeamPassword.trim());
+    await db.ref('projects/' + id + '/appData').set(newAppData);
     showToast(`Progetto "${name.trim()}" creato.`, 'success');
 };
 
@@ -644,8 +699,8 @@ window.migrateLegacyProject = async function() {
         }
         const oldAppData = oldAppSnap.val();
         if (!oldAppData.settings) oldAppData.settings = {};
-        if (!oldAppData.settings.teamPassword) oldAppData.settings.teamPassword = LOGIN_PASSWORDS.team;
-        if (!oldAppData.settings.capoTeamPassword) oldAppData.settings.capoTeamPassword = LOGIN_PASSWORDS.admin;
+        if (!oldAppData.settings.teamPassword) oldAppData.settings.teamPassword = await sha256Hex(LOGIN_PASSWORDS.team);
+        if (!oldAppData.settings.capoTeamPassword) oldAppData.settings.capoTeamPassword = await sha256Hex(LOGIN_PASSWORDS.admin);
         await db.ref('projectsList/' + LEGACY_PROJECT_ID).set({ name: 'Torre Serena', createdAt: new Date().toISOString() });
         await db.ref('projects/' + LEGACY_PROJECT_ID + '/appData').set(oldAppData);
         if (oldChatSnap.exists()) {
@@ -1016,23 +1071,17 @@ function wireUsersSearch() {
 // ==========================================
 // TELEGRAM NOTIFICATIONS CONFIG
 // ==========================================
-// Default storico (usato dal progetto "Torre Serena" finché non imposta i propri).
-const TELEGRAM_CONFIG = {
-    botTokenMagazzino: "8508370432:AAH9vv94rMv4Ub0oL15ORDV3nKu4Uf8o3SI",
-    botTokenEventi: "8387692912:AAFoXwjgFqw0dYdCbqoOBds6ShiNaf8BN10",
-    chatIdAdmin: "843013302",
-    chatIdGroup: "-5217486033"
-};
-
-// Config Telegram effettiva del progetto attivo: usa quella impostata da Utenti/Progetti,
-// altrimenti ricade sul default storico sopra.
+// NB: nessun bot/token condiviso qui — ogni progetto usa SOLO il proprio, impostato in
+// Utenti → Notifiche Telegram di questo progetto. Un progetto senza configurazione propria
+// semplicemente non manda notifiche Telegram (sendTelegramNotification no-op su token vuoto),
+// invece di condividere involontariamente il bot di un altro cliente.
 function telegramConfig() {
     const t = (appData.settings && appData.settings.telegram) || {};
     return {
-        botTokenMagazzino: t.botTokenMagazzino || TELEGRAM_CONFIG.botTokenMagazzino,
-        botTokenEventi: t.botTokenEventi || TELEGRAM_CONFIG.botTokenEventi,
-        chatIdAdmin: t.chatIdAdmin || TELEGRAM_CONFIG.chatIdAdmin,
-        chatIdGroup: t.chatIdGroup || TELEGRAM_CONFIG.chatIdGroup
+        botTokenMagazzino: t.botTokenMagazzino || '',
+        botTokenEventi: t.botTokenEventi || '',
+        chatIdAdmin: t.chatIdAdmin || '',
+        chatIdGroup: t.chatIdGroup || ''
     };
 }
 
@@ -1208,10 +1257,12 @@ function openAdminLoginModal() {
     }, 50);
 }
 
-window.submitAdminLogin = function() {
+window.submitAdminLogin = async function() {
     const pwd = document.getElementById('admin-pwd-input')?.value || '';
-    const expectedPwd = (appData.settings && appData.settings.capoTeamPassword) || LOGIN_PASSWORDS.admin;
-    if (pwd === expectedPwd) {
+    const stored = appData.settings && appData.settings.capoTeamPassword;
+    const { ok, migratedTo } = await verifyAndMaybeMigrate(pwd, stored);
+    if (ok) {
+        if (migratedTo) { appData.settings.capoTeamPassword = migratedTo; saveData(); }
         currentRole = 'admin';
         localStorage.setItem('logistic_torre_role', currentRole);
         applyRole();
@@ -2280,19 +2331,25 @@ function renderProjectPasswordSettings() {
     const teamEl = document.getElementById('project-team-password');
     const capoEl = document.getElementById('project-capoteam-password');
     if (!teamEl) return;
+    // Non precompiliamo mai con la password reale (chiaro o hash): solo campi vuoti,
+    // così scrivere e salvare imposta sempre una password NUOVA.
     const s = appData.settings || {};
-    if (document.activeElement !== teamEl) teamEl.value = s.teamPassword || '';
-    if (document.activeElement !== capoEl) capoEl.value = s.capoTeamPassword || '';
+    if (document.activeElement !== teamEl) teamEl.placeholder = s.teamPassword ? 'Impostata — lascia vuoto per non cambiare' : 'Non ancora impostata';
+    if (document.activeElement !== capoEl) capoEl.placeholder = s.capoTeamPassword ? 'Impostata — lascia vuoto per non cambiare' : 'Non ancora impostata';
 }
 
-window.saveProjectPasswords = function() {
+window.saveProjectPasswords = async function() {
     if (currentRole !== 'admin' || !isProjectManager) return;
     const teamPassword = (document.getElementById('project-team-password')?.value || '').trim();
     const capoTeamPassword = (document.getElementById('project-capoteam-password')?.value || '').trim();
+    if (!teamPassword && !capoTeamPassword) { showToast('Scrivi almeno una password da cambiare.', 'error'); return; }
     if (!appData.settings) appData.settings = {};
-    appData.settings.teamPassword = teamPassword;
-    appData.settings.capoTeamPassword = capoTeamPassword;
+    if (teamPassword) appData.settings.teamPassword = await sha256Hex(teamPassword);
+    if (capoTeamPassword) appData.settings.capoTeamPassword = await sha256Hex(capoTeamPassword);
     saveData();
+    document.getElementById('project-team-password').value = '';
+    document.getElementById('project-capoteam-password').value = '';
+    renderProjectPasswordSettings();
     showToast('Password del progetto aggiornate.', 'success');
 };
 
