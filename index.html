@@ -235,13 +235,14 @@
 
             <!-- Step PM: password Project Manager -->
             <div id="login-step-pm" class="hidden">
-                <p style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Project Manager</p>
+                <p id="login-pm-subtitle" style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Project Manager</p>
+                <p id="login-pm-bootstrap-notice" class="hidden" style="color:#fbbf24;font-size:0.8rem;margin-bottom:10px;text-align:center;">Nessuna password Project Manager configurata: quella che scrivi ora diventerà la password definitiva.</p>
                 <div class="login-input-group" style="margin-bottom:4px;">
                     <span class="material-symbols-outlined input-icon">workspace_premium</span>
                     <input type="password" id="login-pm-pwd" placeholder="Password Project Manager" autocomplete="current-password">
                 </div>
                 <p id="login-pm-error" class="login-error hidden" style="margin-bottom:4px;">Password errata.</p>
-                <button type="button" class="login-btn" onclick="loginProjectManager()" style="margin-top:8px;">
+                <button type="button" class="login-btn" id="login-pm-btn" onclick="loginProjectManager()" style="margin-top:8px;">
                     <span class="material-symbols-outlined" style="font-size:18px;">workspace_premium</span>
                     Accedi come Project Manager
                 </button>
@@ -827,7 +828,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.57"></script>
+    <script src="app.js?v=4.58"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>

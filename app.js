@@ -32,8 +32,9 @@
 // ==========================================
 const LOGIN_PASSWORDS = {
     team: "TeamStaff2026",       // fallback se un progetto non ha una password staff propria
-    admin: "Torre2026",          // fallback se un progetto non ha una password Capo Team propria
-    projectManager: "PM-Torre2026!" // password provvisoria — cambiala dal pannello Progetti
+    admin: "Torre2026"           // fallback se un progetto non ha una password Capo Team propria
+    // NB: nessun fallback per il Project Manager — sarebbe una password universale valida
+    // per chiunque legga il codice sorgente (pubblico). Vedi pmConfig/password + bootstrap.
 };
 
 // ==========================================
@@ -415,20 +416,56 @@ window.loginAdmin = async function() {
     }
 };
 
-window.showPMStep = function() {
+let _pmPasswordExists = null; // null = non ancora verificato, true/false = esito della verifica
+
+window.showPMStep = async function() {
     showLoginStep('login-step-pm');
+    const btn = document.getElementById('login-pm-btn');
+    const notice = document.getElementById('login-pm-bootstrap-notice');
+    const subtitle = document.getElementById('login-pm-subtitle');
+    try {
+        const snap = await db.ref('pmConfig/password').once('value');
+        _pmPasswordExists = snap.exists() && !!snap.val();
+    } catch(e) { _pmPasswordExists = true; } // in dubbio, non offrire un bootstrap silenzioso
+    if (!_pmPasswordExists) {
+        notice.classList.remove('hidden');
+        subtitle.classList.add('hidden');
+        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">workspace_premium</span> Imposta password e accedi';
+    } else {
+        notice.classList.add('hidden');
+        subtitle.classList.remove('hidden');
+        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">workspace_premium</span> Accedi come Project Manager';
+    }
     setTimeout(() => document.getElementById('login-pm-pwd')?.focus(), 50);
 };
 
 window.loginProjectManager = async function() {
     const pwd = document.getElementById('login-pm-pwd')?.value || '';
     const errEl = document.getElementById('login-pm-error');
-    let expected = LOGIN_PASSWORDS.projectManager;
+
+    if (!_pmPasswordExists) {
+        // Prima configurazione: nessuna password universale nel codice — quella scritta ora diventa quella definitiva.
+        if (pwd.length < 8) {
+            errEl.textContent = 'Scegli una password di almeno 8 caratteri.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+        await db.ref('pmConfig/password').set(pwd);
+        errEl.classList.add('hidden');
+        isProjectManager = true;
+        localStorage.setItem('logistic_torre_pm', 'true');
+        showLoginStep('login-step-pm-projects');
+        renderProjectsPanel();
+        return;
+    }
+
+    let expected = null;
     try {
         const snap = await db.ref('pmConfig/password').once('value');
-        if (snap.exists() && snap.val()) expected = snap.val();
-    } catch(e) { /* usa il default se la lettura fallisce */ }
-    if (pwd !== expected) {
+        expected = snap.val();
+    } catch(e) {}
+    if (!expected || pwd !== expected) {
+        errEl.textContent = 'Password errata.';
         errEl.classList.remove('hidden');
         document.getElementById('login-pm-pwd').value = '';
         document.getElementById('login-pm-pwd').focus();
