@@ -654,6 +654,26 @@ th { background-color: #f8fafc; font-weight: 600; color: var(--text-muted); font
     font-size: 0.92rem;
 }
 
+.pm-pwd-input {
+    width: 100%;
+    min-width: 0;
+    padding: 9px 10px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #f8fafc;
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    outline: none;
+}
+
+.pm-pwd-input::placeholder { color: rgba(255, 255, 255, 0.3); }
+
+.pm-pwd-input:focus {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.08);
+}
+
 /* Error Message */
 .login-error {
     color: #f87171;

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-    <link rel="stylesheet" href="style.css?v=18">
+    <link rel="stylesheet" href="style.css?v=19">
     
     <!-- PWA Config -->
     <link rel="manifest" href="manifest.json">
@@ -257,6 +257,15 @@
                     Nuovo progetto
                 </button>
                 <div id="pm-migrate-wrap"></div>
+
+                <div style="margin-top:18px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.1);">
+                    <p style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Cambia la password del Project Manager</p>
+                    <div style="display:flex; gap:6px;">
+                        <input type="text" id="pm-password-input" class="pm-pwd-input" placeholder="Nuova password Project Manager" style="flex:1;">
+                        <button type="button" class="btn small primary" onclick="savePmPassword()">Salva</button>
+                    </div>
+                </div>
+
                 <button type="button" class="login-back-btn" onclick="pmLogoutToStep1()" style="margin-top:10px;">← Esci</button>
             </div>
 
@@ -785,7 +794,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.51"></script>
+    <script src="app.js?v=4.52"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>

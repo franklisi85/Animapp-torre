@@ -420,10 +420,15 @@ window.showPMStep = function() {
     setTimeout(() => document.getElementById('login-pm-pwd')?.focus(), 50);
 };
 
-window.loginProjectManager = function() {
+window.loginProjectManager = async function() {
     const pwd = document.getElementById('login-pm-pwd')?.value || '';
     const errEl = document.getElementById('login-pm-error');
-    if (pwd !== LOGIN_PASSWORDS.projectManager) {
+    let expected = LOGIN_PASSWORDS.projectManager;
+    try {
+        const snap = await db.ref('pmConfig/password').once('value');
+        if (snap.exists() && snap.val()) expected = snap.val();
+    } catch(e) { /* usa il default se la lettura fallisce */ }
+    if (pwd !== expected) {
         errEl.classList.remove('hidden');
         document.getElementById('login-pm-pwd').value = '';
         document.getElementById('login-pm-pwd').focus();
@@ -438,7 +443,16 @@ window.loginProjectManager = function() {
     renderProjectsPanel();
 };
 
-// Elenco progetti mostrato al Project Manager per scegliere/creare quale gestire
+window.savePmPassword = function() {
+    const pwd = (document.getElementById('pm-password-input')?.value || '').trim();
+    if (!pwd) { showToast('Inserisci una password.', 'error'); return; }
+    db.ref('pmConfig/password').set(pwd);
+    showToast('Password Project Manager aggiornata.', 'success');
+    document.getElementById('pm-password-input').value = '';
+};
+
+// Elenco progetti mostrato al Project Manager: entrare, rinominare e impostare
+// le password di ciascun progetto SENZA doverci entrare dentro.
 function renderProjectsPanel() {
     const list = document.getElementById('pm-projects-list');
     if (!list) return;
@@ -446,11 +460,39 @@ function renderProjectsPanel() {
     list.innerHTML = ids.length === 0
         ? '<p style="color:rgba(255,255,255,0.5); font-size:0.85rem; margin-bottom:10px;">Nessun progetto ancora creato.</p>'
         : ids.map(id => `
-            <div class="project-picker-card">
-                <span class="name">${escHtml(projectsListCache[id].name || id)}</span>
-                <button type="button" class="btn small primary" onclick="enterProjectAsManager('${escHtml(id)}')">Entra</button>
+            <div class="project-picker-card" style="flex-direction:column; align-items:stretch; gap:8px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                    <span class="name">${escHtml(projectsListCache[id].name || id)}</span>
+                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                        <button type="button" class="btn-icon" style="color:rgba(255,255,255,0.6);" onclick="promptRenameProject('${escHtml(id)}')" title="Rinomina">
+                            <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+                        </button>
+                        <button type="button" class="btn-icon" style="color:#f87171;" onclick="promptDeleteProject('${escHtml(id)}')" title="Elimina progetto">
+                            <span class="material-symbols-outlined" style="font-size:16px;">delete_forever</span>
+                        </button>
+                        <button type="button" class="btn small primary" onclick="enterProjectAsManager('${escHtml(id)}')">Entra</button>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                    <input type="text" id="pm-team-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Password Staff">
+                    <input type="text" id="pm-capo-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Password Capo Team">
+                </div>
+                <button type="button" class="login-back-btn" style="align-self:flex-end; font-size:0.76rem;" onclick="savePmProjectPasswords('${escHtml(id)}')">Salva password</button>
             </div>
         `).join('');
+
+    // Precompila le password di ciascun progetto (lettura leggera, solo il nodo settings)
+    ids.forEach(async (id) => {
+        try {
+            const snap = await db.ref(`projects/${id}/appData/settings`).once('value');
+            const s = snap.val() || {};
+            const teamEl = document.getElementById(`pm-team-pwd-${id}`);
+            const capoEl = document.getElementById(`pm-capo-pwd-${id}`);
+            if (teamEl && document.activeElement !== teamEl) teamEl.value = s.teamPassword || '';
+            if (capoEl && document.activeElement !== capoEl) capoEl.value = s.capoTeamPassword || '';
+        } catch(e) {}
+    });
+
     const migrateWrap = document.getElementById('pm-migrate-wrap');
     if (migrateWrap) {
         migrateWrap.innerHTML = ids.length === 0
@@ -458,6 +500,33 @@ function renderProjectsPanel() {
             : '';
     }
 }
+
+window.promptRenameProject = async function(id) {
+    const current = (projectsListCache[id] && projectsListCache[id].name) || id;
+    const name = prompt('Nuovo nome del progetto:', current);
+    if (!name || !name.trim() || name.trim() === current) return;
+    await db.ref(`projectsList/${id}/name`).set(name.trim());
+    showToast('Progetto rinominato.', 'success');
+};
+
+window.promptDeleteProject = async function(id) {
+    const name = (projectsListCache[id] && projectsListCache[id].name) || id;
+    const typed = prompt(`Questa operazione elimina DEFINITIVAMENTE il progetto "${name}" e tutti i suoi dati (staff, inventario, eventi, chat, utenti). Non è reversibile.\n\nScrivi il nome esatto del progetto per confermare:`);
+    if (typed !== name) {
+        if (typed !== null) showToast('Nome non corrispondente: eliminazione annullata.', 'error');
+        return;
+    }
+    await db.ref(`projects/${id}`).remove();
+    await db.ref(`projectsList/${id}`).remove();
+    showToast(`Progetto "${name}" eliminato.`, 'success');
+};
+
+window.savePmProjectPasswords = async function(id) {
+    const teamPassword = (document.getElementById(`pm-team-pwd-${id}`)?.value || '').trim();
+    const capoTeamPassword = (document.getElementById(`pm-capo-pwd-${id}`)?.value || '').trim();
+    await db.ref(`projects/${id}/appData/settings`).update({ teamPassword, capoTeamPassword });
+    showToast('Password del progetto aggiornate.', 'success');
+};
 
 window.enterProjectAsManager = async function(pid) {
     await attachProjectListener(pid);
