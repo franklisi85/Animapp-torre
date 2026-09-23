@@ -1,4 +1,4 @@
-const CACHE_NAME = 'animapp-v66';
+const CACHE_NAME = 'animapp-v67';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -6,7 +6,7 @@ const STATIC_ASSETS = [
     '/style.css?v=19',
     '/sw.js',
     '/manifest.json',
-    '/icona-animapp.png'
+    '/icona-gesteven.png'
 ];
 
 self.addEventListener('install', (e) => {
