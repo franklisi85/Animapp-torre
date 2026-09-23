@@ -474,8 +474,14 @@ function renderProjectsPanel() {
                     </div>
                 </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-                    <input type="text" id="pm-team-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Password Staff">
-                    <input type="text" id="pm-capo-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Password Capo Team">
+                    <div>
+                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Staff</label>
+                        <input type="text" id="pm-team-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Password Staff">
+                    </div>
+                    <div>
+                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Capo Team</label>
+                        <input type="text" id="pm-capo-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Password Capo Team">
+                    </div>
                 </div>
                 <button type="button" class="login-back-btn" style="align-self:flex-end; font-size:0.76rem;" onclick="savePmProjectPasswords('${escHtml(id)}')">Salva password</button>
             </div>
