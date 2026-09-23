@@ -654,6 +654,9 @@ function initOneSignal(email, name, role) {
             appId: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
             promptOptions: { slidedown: { prompts: [{ type: 'push', autoPrompt: false }] } }
         });
+        // Tag di progetto sempre presente (anche per Capo Team/Project Manager, che non hanno email)
+        // così le notifiche push possono essere mirate solo allo staff dello stesso progetto.
+        if (currentProjectId) OneSignal.User.addTag('project', currentProjectId);
         if (email) {
             await OneSignal.login(email);
             OneSignal.User.addTag('email', email);
@@ -736,7 +739,7 @@ window.sendTestNotification = async function() {
         const res = await fetch('/.netlify/functions/notify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: '🔔 Test notifica', message: 'Se vedi questo banner le notifiche funzionano!', view: 'dashboard' })
+            body: JSON.stringify({ title: '🔔 Test notifica', message: 'Se vedi questo banner le notifiche funzionano!', view: 'dashboard', projectId: currentProjectId })
         });
         const data = await res.json();
         if (data.recipients > 0) {
@@ -756,7 +759,7 @@ async function sendPushNotification(title, message, senderEmail, view) {
         const res = await fetch('/.netlify/functions/notify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, message, view })
+            body: JSON.stringify({ title, message, view, projectId: currentProjectId })
         });
         if (!res.ok && currentRole === 'admin') {
             const txt = await res.text();
@@ -944,6 +947,7 @@ function wireUsersSearch() {
 // ==========================================
 // TELEGRAM NOTIFICATIONS CONFIG
 // ==========================================
+// Default storico (usato dal progetto "Torre Serena" finché non imposta i propri).
 const TELEGRAM_CONFIG = {
     botTokenMagazzino: "8508370432:AAH9vv94rMv4Ub0oL15ORDV3nKu4Uf8o3SI",
     botTokenEventi: "8387692912:AAFoXwjgFqw0dYdCbqoOBds6ShiNaf8BN10",
@@ -951,9 +955,21 @@ const TELEGRAM_CONFIG = {
     chatIdGroup: "-5217486033"
 };
 
+// Config Telegram effettiva del progetto attivo: usa quella impostata da Utenti/Progetti,
+// altrimenti ricade sul default storico sopra.
+function telegramConfig() {
+    const t = (appData.settings && appData.settings.telegram) || {};
+    return {
+        botTokenMagazzino: t.botTokenMagazzino || TELEGRAM_CONFIG.botTokenMagazzino,
+        botTokenEventi: t.botTokenEventi || TELEGRAM_CONFIG.botTokenEventi,
+        chatIdAdmin: t.chatIdAdmin || TELEGRAM_CONFIG.chatIdAdmin,
+        chatIdGroup: t.chatIdGroup || TELEGRAM_CONFIG.chatIdGroup
+    };
+}
+
 async function sendTelegramNotification(message, token, targetChatId) {
     if (!token || token === "INSERISCI_QUI_IL_TOKEN") return;
-    const chatId = targetChatId || TELEGRAM_CONFIG.chatIdAdmin;
+    const chatId = targetChatId || telegramConfig().chatIdAdmin;
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
     try {
         await fetch(url, {
@@ -1677,8 +1693,8 @@ window.requestRestock = function(secId, matId) {
             (notes ? `📝 <b>Note:</b> ${notes}\n` : '') +
             (url ? `🔗 <b>Link:</b> ${url}\n` : '') +
             `\n⏰ ${new Date().toLocaleString('it-IT')}`,
-            TELEGRAM_CONFIG.botTokenMagazzino,
-            TELEGRAM_CONFIG.chatIdAdmin
+            telegramConfig().botTokenMagazzino,
+            telegramConfig().chatIdAdmin
         );
     }
 }
@@ -1919,8 +1935,8 @@ window.addMaterial = function(secId) {
             `🔖 <b>Codice:</b> ${confirmCode}\n` +
             (matUrl ? `🔗 <b>Link:</b> ${matUrl}\n` : '') +
             `\n⏰ ${new Date().toLocaleString('it-IT')}`,
-            TELEGRAM_CONFIG.botTokenMagazzino,
-            TELEGRAM_CONFIG.chatIdAdmin
+            telegramConfig().botTokenMagazzino,
+            telegramConfig().chatIdAdmin
         );
         showToast(`Materiale aggiunto — richiesta inviata. Codice: ${confirmCode}`, 'success');
     } else {
@@ -1932,8 +1948,8 @@ window.addMaterial = function(secId) {
                 `🔢 <b>Giacenza:</b> ${qty}\n` +
                 `👤 <b>Da:</b> ${currentUsername || currentRole}\n\n` +
                 `⏰ ${new Date().toLocaleString('it-IT')}`,
-                TELEGRAM_CONFIG.botTokenMagazzino,
-                TELEGRAM_CONFIG.chatIdAdmin
+                telegramConfig().botTokenMagazzino,
+                telegramConfig().chatIdAdmin
             );
         }
         showToast('Materiale aggiunto con successo.', 'success');
@@ -2211,6 +2227,32 @@ window.saveProjectPasswords = function() {
     showToast('Password del progetto aggiornate.', 'success');
 };
 
+// Config Telegram (bot token/chat id) specifica di questo progetto (vuoto = usa il default dell'app)
+function renderProjectTelegramSettings() {
+    const botMagEl = document.getElementById('project-tg-bot-magazzino');
+    const chatAdminEl = document.getElementById('project-tg-chat-admin');
+    const botEvEl = document.getElementById('project-tg-bot-eventi');
+    const chatGroupEl = document.getElementById('project-tg-chat-group');
+    if (!botMagEl) return;
+    const t = (appData.settings && appData.settings.telegram) || {};
+    if (document.activeElement !== botMagEl) botMagEl.value = t.botTokenMagazzino || '';
+    if (document.activeElement !== chatAdminEl) chatAdminEl.value = t.chatIdAdmin || '';
+    if (document.activeElement !== botEvEl) botEvEl.value = t.botTokenEventi || '';
+    if (document.activeElement !== chatGroupEl) chatGroupEl.value = t.chatIdGroup || '';
+}
+
+window.saveProjectTelegramConfig = function() {
+    if (currentRole !== 'admin') return;
+    const botTokenMagazzino = (document.getElementById('project-tg-bot-magazzino')?.value || '').trim();
+    const chatIdAdmin = (document.getElementById('project-tg-chat-admin')?.value || '').trim();
+    const botTokenEventi = (document.getElementById('project-tg-bot-eventi')?.value || '').trim();
+    const chatIdGroup = (document.getElementById('project-tg-chat-group')?.value || '').trim();
+    if (!appData.settings) appData.settings = {};
+    appData.settings.telegram = { botTokenMagazzino, chatIdAdmin, botTokenEventi, chatIdGroup };
+    saveData();
+    showToast('Configurazione Telegram del progetto aggiornata.', 'success');
+};
+
 function renderRegisteredUsers() {
     const approvedContainer = document.getElementById('registered-users-list');
     const blockedContainer  = document.getElementById('blocked-users-list');
@@ -2219,6 +2261,7 @@ function renderRegisteredUsers() {
 
     renderAdminContactSettings();
     renderProjectPasswordSettings();
+    renderProjectTelegramSettings();
     wireUsersSearch();
     const users   = appData.registeredUsers || [];
     const blocked = appData.blockedEmails   || [];
@@ -2704,8 +2747,8 @@ window.addEvent = function() {
         `⏰ <b>Orario:</b> ${time}\n` +
         `📍 <b>Luogo:</b> ${loc}\n\n` +
         `👤 <i>Aggiunto dall'Admin</i>`,
-        TELEGRAM_CONFIG.botTokenEventi,
-        TELEGRAM_CONFIG.chatIdGroup
+        telegramConfig().botTokenEventi,
+        telegramConfig().chatIdGroup
     );
 }
 
@@ -3212,8 +3255,8 @@ window.submitQuickRequest = function() {
         (notes ? `📝 <b>Note:</b> ${notes}\n` : '') +
         (url   ? `🔗 <b>Link:</b> ${url}\n`   : '') +
         `\n⏰ ${new Date().toLocaleString('it-IT')}`,
-        TELEGRAM_CONFIG.botTokenMagazzino,
-        TELEGRAM_CONFIG.chatIdAdmin
+        telegramConfig().botTokenMagazzino,
+        telegramConfig().chatIdAdmin
     );
 };
 
@@ -3295,7 +3338,7 @@ window.toggleBlockRequests = function() {
     const msg = blocked
         ? `🔒 <b>Richieste Materiali Bloccate</b>\n\nL'amministratore ha bloccato le richieste di materiale. Non è possibile effettuare nuove richieste fino a nuovo avviso.\n\n⏰ ${new Date().toLocaleString('it-IT')}`
         : `✅ <b>Richieste Materiali Riaperte</b>\n\nL'amministratore ha riaperto le richieste di materiale. È nuovamente possibile richiedere e aggiungere materiali.\n\n⏰ ${new Date().toLocaleString('it-IT')}`;
-    sendTelegramNotification(msg, TELEGRAM_CONFIG.botTokenEventi, TELEGRAM_CONFIG.chatIdGroup);
+    sendTelegramNotification(msg, telegramConfig().botTokenEventi, telegramConfig().chatIdGroup);
 }
 
 // ==========================================

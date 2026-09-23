@@ -689,6 +689,37 @@
                         </button>
                     </div>
 
+                    <div class="card" style="padding:16px 24px; margin-bottom:24px;">
+                        <h3 style="font-size:1rem; font-weight:600; display:flex; align-items:center; gap:8px; margin:0 0 6px;">
+                            <span class="material-symbols-outlined" style="font-size:18px;">send</span>
+                            Notifiche Telegram di questo progetto
+                        </h3>
+                        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:14px;">
+                            Bot e gruppo Telegram usati per le notifiche di QUESTO progetto (richieste materiali ed eventi). Crea un bot dedicato con <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> per isolare i messaggi da quelli di altri progetti. Lascia vuoto per usare quelli predefiniti dell'app.
+                        </p>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                            <div class="form-group" style="margin:0;">
+                                <label>Bot Token — Richieste Materiali</label>
+                                <input type="text" id="project-tg-bot-magazzino" class="form-control" placeholder="Token predefinito" autocomplete="off">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>Chat ID — Admin/Magazzino</label>
+                                <input type="text" id="project-tg-chat-admin" class="form-control" placeholder="Chat ID predefinita" autocomplete="off">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>Bot Token — Eventi</label>
+                                <input type="text" id="project-tg-bot-eventi" class="form-control" placeholder="Token predefinito" autocomplete="off">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>Chat ID — Gruppo Collaboratori</label>
+                                <input type="text" id="project-tg-chat-group" class="form-control" placeholder="Chat ID predefinita" autocomplete="off">
+                            </div>
+                        </div>
+                        <button class="btn primary" onclick="saveProjectTelegramConfig()" style="margin-top:14px; padding:7px 14px; font-size:0.85rem;">
+                            <span class="material-symbols-outlined" style="font-size:18px;">save</span> Salva configurazione Telegram
+                        </button>
+                    </div>
+
                     <div class="search-bar-section" id="search-users">
                         <div class="search-input-wrapper">
                             <span class="material-symbols-outlined">search</span>
@@ -794,7 +825,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.54"></script>
+    <script src="app.js?v=4.55"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>

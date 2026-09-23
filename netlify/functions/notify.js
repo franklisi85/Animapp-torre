@@ -11,7 +11,7 @@ exports.handler = async (event) => {
         return { statusCode: 400, body: 'Invalid JSON' };
     }
 
-    const { title, message, senderEmail, view } = body;
+    const { title, message, senderEmail, view, projectId } = body;
     if (!title || !message) {
         return { statusCode: 400, body: 'Missing title or message' };
     }
@@ -21,12 +21,20 @@ exports.handler = async (event) => {
 
     const payload = {
         app_id: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
-        included_segments: ['All'],
         contents: { it: message, en: message },
         headings: { it: title, en: title },
         url: targetUrl,
         data: view ? { view } : undefined
     };
+
+    // Se sappiamo da quale progetto arriva la notifica, la mandiamo solo ai dispositivi
+    // taggati con quel progetto (vedi OneSignal.User.addTag('project', ...) in app.js).
+    // Senza projectId (retrocompatibilità/dati storici) resta un broadcast a tutti.
+    if (projectId) {
+        payload.filters = [{ field: 'tag', key: 'project', relation: '=', value: projectId }];
+    } else {
+        payload.included_segments = ['All'];
+    }
 
     try {
         const res = await fetch('https://api.onesignal.com/notifications', {
