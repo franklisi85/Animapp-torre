@@ -1,0 +1,9 @@
+# Dipendenze delle Netlify Functions (installate automaticamente da Netlify in build)
+node_modules/
+netlify/functions/node_modules/
+
+# Credenziali Firebase Admin SDK — NON vanno MAI committate.
+# Vanno inserite solo come variabile d'ambiente su Netlify (FIREBASE_SERVICE_ACCOUNT).
+*firebase-adminsdk*.json
+*serviceAccount*.json
+*service-account*.json

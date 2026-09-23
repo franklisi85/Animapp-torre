@@ -236,7 +236,6 @@
             <!-- Step PM: password Project Manager -->
             <div id="login-step-pm" class="hidden">
                 <p id="login-pm-subtitle" style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Project Manager</p>
-                <p id="login-pm-bootstrap-notice" class="hidden" style="color:#fbbf24;font-size:0.8rem;margin-bottom:10px;text-align:center;">Nessuna password Project Manager configurata: quella che scrivi ora diventerà la password definitiva.</p>
                 <div class="login-input-group" style="margin-bottom:4px;">
                     <span class="material-symbols-outlined input-icon">workspace_premium</span>
                     <input type="password" id="login-pm-pwd" placeholder="Password Project Manager" autocomplete="current-password">
@@ -261,9 +260,12 @@
 
                 <div style="margin-top:18px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.1);">
                     <p style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Cambia la password del Project Manager</p>
-                    <div style="display:flex; gap:6px;">
-                        <input type="text" id="pm-password-input" class="pm-pwd-input" placeholder="Nuova password Project Manager" style="flex:1;">
-                        <button type="button" class="btn small primary" onclick="savePmPassword()">Salva</button>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <input type="password" id="pm-password-current" class="pm-pwd-input" placeholder="Password attuale" autocomplete="current-password">
+                        <div style="display:flex; gap:6px;">
+                            <input type="password" id="pm-password-input" class="pm-pwd-input" placeholder="Nuova password (min 8 caratteri)" autocomplete="new-password" style="flex:1;">
+                            <button type="button" class="btn small primary" onclick="savePmPassword()">Salva</button>
+                        </div>
                     </div>
                 </div>
 
@@ -828,7 +830,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.59"></script>
+    <script src="app.js?v=4.60"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>

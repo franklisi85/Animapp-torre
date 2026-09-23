@@ -36,8 +36,8 @@
 const LOGIN_PASSWORDS = {
     team: "TeamStaff2026",
     admin: "Torre2026"
-    // NB: nessun fallback per il Project Manager — sarebbe una password universale valida
-    // per chiunque legga il codice sorgente (pubblico). Vedi pmConfig/password + bootstrap.
+    // NB: nessun fallback per il Project Manager — la sua password è verificata solo
+    // lato server (netlify/functions/pm-auth.js), mai letta/scritta dal client.
 };
 
 // ==========================================
@@ -451,57 +451,38 @@ window.loginAdmin = async function() {
     }
 };
 
-let _pmPasswordExists = null; // null = non ancora verificato, true/false = esito della verifica
+// Login/bootstrap/cambio password Project Manager: TUTTO verificato lato server
+// (netlify/functions/pm-auth.js, con le credenziali admin di Firebase). Il client non
+// legge né scrive mai direttamente pmConfig/password — le regole del database lo negano
+// esplicitamente, quindi nemmeno aprendo la Console del browser si può leggerla o cancellarla.
+async function callPmAuth(payload) {
+    const res = await fetch('/.netlify/functions/pm-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    return res.json();
+}
 
-window.showPMStep = async function() {
+window.showPMStep = function() {
     showLoginStep('login-step-pm');
-    const btn = document.getElementById('login-pm-btn');
-    const notice = document.getElementById('login-pm-bootstrap-notice');
-    const subtitle = document.getElementById('login-pm-subtitle');
-    try {
-        const snap = await db.ref('pmConfig/password').once('value');
-        _pmPasswordExists = snap.exists() && !!snap.val();
-    } catch(e) { _pmPasswordExists = true; } // in dubbio, non offrire un bootstrap silenzioso
-    if (!_pmPasswordExists) {
-        notice.classList.remove('hidden');
-        subtitle.classList.add('hidden');
-        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">workspace_premium</span> Imposta password e accedi';
-    } else {
-        notice.classList.add('hidden');
-        subtitle.classList.remove('hidden');
-        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">workspace_premium</span> Accedi come Project Manager';
-    }
     setTimeout(() => document.getElementById('login-pm-pwd')?.focus(), 50);
 };
 
 window.loginProjectManager = async function() {
     const pwd = document.getElementById('login-pm-pwd')?.value || '';
     const errEl = document.getElementById('login-pm-error');
-
-    if (!_pmPasswordExists) {
-        // Prima configurazione: nessuna password universale nel codice — quella scritta ora diventa quella definitiva.
-        if (pwd.length < 8) {
-            errEl.textContent = 'Scegli una password di almeno 8 caratteri.';
-            errEl.classList.remove('hidden');
-            return;
-        }
-        await db.ref('pmConfig/password').set(await sha256Hex(pwd));
-        errEl.classList.add('hidden');
-        isProjectManager = true;
-        localStorage.setItem('logistic_torre_pm', 'true');
-        showLoginStep('login-step-pm-projects');
-        renderProjectsPanel();
+    if (!pwd) return;
+    let result;
+    try {
+        result = await callPmAuth({ action: 'login', password: pwd });
+    } catch(e) {
+        errEl.textContent = 'Errore di connessione. Riprova.';
+        errEl.classList.remove('hidden');
         return;
     }
-
-    let stored = null;
-    try {
-        const snap = await db.ref('pmConfig/password').once('value');
-        stored = snap.val();
-    } catch(e) {}
-    const { ok, migratedTo } = await verifyAndMaybeMigrate(pwd, stored);
-    if (!ok) {
-        errEl.textContent = 'Password errata.';
+    if (!result.ok) {
+        errEl.textContent = result.error === 'too_short' ? 'Scegli una password di almeno 8 caratteri.' : 'Password errata.';
         errEl.classList.remove('hidden');
         document.getElementById('login-pm-pwd').value = '';
         document.getElementById('login-pm-pwd').focus();
@@ -509,20 +490,27 @@ window.loginProjectManager = async function() {
         setTimeout(() => loginCard.classList.remove('shake'), 500);
         return;
     }
-    if (migratedTo) db.ref('pmConfig/password').set(migratedTo);
     errEl.classList.add('hidden');
     isProjectManager = true;
     localStorage.setItem('logistic_torre_pm', 'true');
     showLoginStep('login-step-pm-projects');
     renderProjectsPanel();
+    if (result.bootstrapped) showToast('Password Project Manager impostata per la prima volta.', 'success');
 };
 
 window.savePmPassword = async function() {
+    const currentPassword = (document.getElementById('pm-password-current')?.value || '').trim();
     const pwd = (document.getElementById('pm-password-input')?.value || '').trim();
-    if (!pwd) { showToast('Inserisci una password.', 'error'); return; }
-    if (pwd.length < 8) { showToast('La password deve avere almeno 8 caratteri.', 'error'); return; }
-    await db.ref('pmConfig/password').set(await sha256Hex(pwd));
+    if (!currentPassword) { showToast('Inserisci la password attuale.', 'error'); return; }
+    if (!pwd) { showToast('Inserisci la nuova password.', 'error'); return; }
+    if (pwd.length < 8) { showToast('La nuova password deve avere almeno 8 caratteri.', 'error'); return; }
+    const result = await callPmAuth({ action: 'change', currentPassword, newPassword: pwd });
+    if (!result.ok) {
+        showToast(result.error === 'wrong_current' ? 'Password attuale errata.' : 'Errore durante il cambio password.', 'error');
+        return;
+    }
     showToast('Password Project Manager aggiornata.', 'success');
+    document.getElementById('pm-password-current').value = '';
     document.getElementById('pm-password-input').value = '';
 };
 
