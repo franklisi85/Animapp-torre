@@ -1,9 +1,9 @@
-const CACHE_NAME = 'animapp-v72';
+const CACHE_NAME = 'animapp-v73';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
-    '/app.js?v=4.61',
-    '/style.css?v=19',
+    '/app.js?v=4.62',
+    '/style.css?v=20',
     '/sw.js',
     '/manifest.json',
     '/icona-gesteven.png'

@@ -36,7 +36,7 @@
 const LOGIN_PASSWORDS = {
     team: "TeamStaff2026",
     admin: "Torre2026"
-    // NB: nessun fallback per il Project Manager — la sua password è verificata solo
+    // NB: nessun fallback per l'Amministratore Unico — la sua password è verificata solo
     // lato server (netlify/functions/pm-auth.js), mai letta/scritta dal client.
 };
 
@@ -49,7 +49,8 @@ const LEGACY_PROJECT_ID = 'torre-serena'; // id fisso del progetto migrato dai d
 let currentProjectId = localStorage.getItem('logistic_torre_project') || null;
 let projectsListCache = {}; // { [projectId]: { name, createdAt } } — indice leggero, sempre caricato
 let projectsListLoaded = false;
-let isProjectManager = localStorage.getItem('logistic_torre_pm') === 'true'; // entrato come Project Manager
+let isSuperAdmin = localStorage.getItem('logistic_torre_superadmin') === 'true'; // entrato come Amministratore Unico
+let isPasswordManager = localStorage.getItem('logistic_torre_pwm') === 'true'; // entrato come Project Manager (solo password)
 
 // Sessioni già loggate PRIMA dell'introduzione multi-progetto non hanno un projectId salvato:
 // le agganciamo automaticamente al progetto storico migrato, così non serve rifare il login.
@@ -144,7 +145,7 @@ async function findBlockedProjectId(email) {
 }
 
 // Attiva l'ascolto dati per un progetto: stacca l'eventuale listener precedente (utile quando
-// un Project Manager passa da un progetto all'altro) e risolve la Promise al primo caricamento.
+// un Amministratore Unico passa da un progetto all'altro) e risolve la Promise al primo caricamento.
 let _appDataRef = null;
 function attachProjectListener(pid) {
     return new Promise((resolve) => {
@@ -208,7 +209,7 @@ if (localStorage.getItem('logistic_torre_auth') === 'true') {
 let pendingLoginUser = null;
 
 function showLoginStep(stepId) {
-    ['login-step-1','login-step-2','login-step-3','login-step-admin','login-step-pm','login-step-pm-projects'].forEach(id => {
+    ['login-step-1','login-step-2','login-step-3','login-step-admin','login-step-pm','login-step-pm-projects','login-step-pwm','login-step-pwm-projects'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
@@ -349,7 +350,7 @@ window.loginWithPassword = async function() {
     const errEl = document.getElementById('login-step2-error');
     const stored = appData.settings && appData.settings.teamPassword;
     if (!stored) {
-        errEl.textContent = 'Questo progetto non ha ancora una password Staff configurata. Contatta il Project Manager.';
+        errEl.textContent = "Questo progetto non ha ancora una password Staff configurata. Contatta l'Amministratore Unico o il Project Manager.";
         errEl.classList.remove('hidden');
         return;
     }
@@ -451,7 +452,7 @@ window.loginAdmin = async function() {
     }
 };
 
-// Login/bootstrap/cambio password Project Manager: TUTTO verificato lato server
+// Login/bootstrap/cambio password Amministratore Unico: TUTTO verificato lato server
 // (netlify/functions/pm-auth.js, con le credenziali admin di Firebase). Il client non
 // legge né scrive mai direttamente pmConfig/password — le regole del database lo negano
 // esplicitamente, quindi nemmeno aprendo la Console del browser si può leggerla o cancellarla.
@@ -491,11 +492,11 @@ window.loginProjectManager = async function() {
         return;
     }
     errEl.classList.add('hidden');
-    isProjectManager = true;
-    localStorage.setItem('logistic_torre_pm', 'true');
+    isSuperAdmin = true;
+    localStorage.setItem('logistic_torre_superadmin', 'true');
     showLoginStep('login-step-pm-projects');
     renderProjectsPanel();
-    if (result.bootstrapped) showToast('Password Project Manager impostata per la prima volta.', 'success');
+    if (result.bootstrapped) showToast('Password Amministratore Unico impostata per la prima volta.', 'success');
 };
 
 window.savePmPassword = async function() {
@@ -509,12 +510,115 @@ window.savePmPassword = async function() {
         showToast(result.error === 'wrong_current' ? 'Password attuale errata.' : 'Errore durante il cambio password.', 'error');
         return;
     }
-    showToast('Password Project Manager aggiornata.', 'success');
+    showToast('Password Amministratore Unico aggiornata.', 'success');
     document.getElementById('pm-password-current').value = '';
     document.getElementById('pm-password-input').value = '';
 };
 
-// Elenco progetti mostrato al Project Manager: entrare, rinominare e impostare
+// ==========================================
+// PROJECT MANAGER (ruolo limitato: solo password Staff/Capo Team dei progetti)
+// Login/cambio password verificati lato server esattamente come l'Amministratore Unico,
+// ma su un percorso Firebase separato (pwmConfig/password) e senza nessun altro potere:
+// non può entrare nei progetti, rinominarli, eliminarli, duplicarli né vedere statistiche.
+// ==========================================
+async function callPwmAuth(payload) {
+    const res = await fetch('/.netlify/functions/pwm-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    return res.json();
+}
+
+window.showPWMStep = function() {
+    showLoginStep('login-step-pwm');
+    setTimeout(() => document.getElementById('login-pwm-pwd')?.focus(), 50);
+};
+
+window.loginPasswordManager = async function() {
+    const pwd = document.getElementById('login-pwm-pwd')?.value || '';
+    const errEl = document.getElementById('login-pwm-error');
+    if (!pwd) return;
+    let result;
+    try {
+        result = await callPwmAuth({ action: 'login', password: pwd });
+    } catch(e) {
+        errEl.textContent = 'Errore di connessione. Riprova.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+    if (!result.ok) {
+        errEl.textContent = result.error === 'too_short' ? 'Scegli una password di almeno 8 caratteri.' : 'Password errata.';
+        errEl.classList.remove('hidden');
+        document.getElementById('login-pwm-pwd').value = '';
+        document.getElementById('login-pwm-pwd').focus();
+        loginCard.classList.add('shake');
+        setTimeout(() => loginCard.classList.remove('shake'), 500);
+        return;
+    }
+    errEl.classList.add('hidden');
+    isPasswordManager = true;
+    localStorage.setItem('logistic_torre_pwm', 'true');
+    showLoginStep('login-step-pwm-projects');
+    renderPasswordManagerPanel();
+    if (result.bootstrapped) showToast('Password Project Manager impostata per la prima volta.', 'success');
+};
+
+window.savePwmPassword = async function() {
+    const currentPassword = (document.getElementById('pwm-password-current')?.value || '').trim();
+    const pwd = (document.getElementById('pwm-password-input')?.value || '').trim();
+    if (!currentPassword) { showToast('Inserisci la password attuale.', 'error'); return; }
+    if (!pwd) { showToast('Inserisci la nuova password.', 'error'); return; }
+    if (pwd.length < 8) { showToast('La nuova password deve avere almeno 8 caratteri.', 'error'); return; }
+    const result = await callPwmAuth({ action: 'change', currentPassword, newPassword: pwd });
+    if (!result.ok) {
+        showToast(result.error === 'wrong_current' ? 'Password attuale errata.' : 'Errore durante il cambio password.', 'error');
+        return;
+    }
+    showToast('Password Project Manager aggiornata.', 'success');
+    document.getElementById('pwm-password-current').value = '';
+    document.getElementById('pwm-password-input').value = '';
+};
+
+// Pannello del Project Manager: SOLO nome progetto + password Staff/Capo Team.
+// Nessun pulsante di rinomina/duplica/elimina/entra, nessuna statistica: il Project
+// Manager non ha visibilità sui dati dei progetti, solo sulle loro credenziali di accesso.
+function renderPasswordManagerPanel() {
+    const list = document.getElementById('pwm-projects-list');
+    if (!list) return;
+    const ids = Object.keys(projectsListCache);
+    list.innerHTML = ids.length === 0
+        ? '<p style="color:rgba(255,255,255,0.5); font-size:0.85rem; margin-bottom:10px;">Nessun progetto ancora creato.</p>'
+        : ids.map(id => `
+            <div class="project-picker-card" style="flex-direction:column; align-items:stretch; gap:8px;">
+                <span class="name">${escHtml(projectsListCache[id].name || id)}</span>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                    <div>
+                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Staff <span id="pwm-team-status-${escHtml(id)}"></span></label>
+                        <input type="text" id="pwm-team-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Lascia vuoto per non cambiare">
+                    </div>
+                    <div>
+                        <label style="display:block; color:rgba(255,255,255,0.5); font-size:0.7rem; margin-bottom:3px;">Password Capo Team <span id="pwm-capo-status-${escHtml(id)}"></span></label>
+                        <input type="text" id="pwm-capo-pwd-${escHtml(id)}" class="pm-pwd-input" placeholder="Lascia vuoto per non cambiare">
+                    </div>
+                </div>
+                <button type="button" class="login-back-btn" style="align-self:flex-end; font-size:0.76rem;" onclick="savePmProjectPasswords('${escHtml(id)}', true)">Salva password</button>
+            </div>
+        `).join('');
+
+    ids.forEach(async (id) => {
+        try {
+            const snap = await db.ref(`projects/${id}/appData/settings`).once('value');
+            const s = snap.val() || {};
+            const teamStatus = document.getElementById(`pwm-team-status-${id}`);
+            const capoStatus = document.getElementById(`pwm-capo-status-${id}`);
+            if (teamStatus) teamStatus.textContent = s.teamPassword ? '✓ impostata' : '⚠ non impostata';
+            if (capoStatus) capoStatus.textContent = s.capoTeamPassword ? '✓ impostata' : '⚠ non impostata';
+        } catch(e) {}
+    });
+}
+
+// Elenco progetti mostrato all'Amministratore Unico: entrare, rinominare e impostare
 // le password di ciascun progetto SENZA doverci entrare dentro.
 function renderProjectsPanel() {
     const list = document.getElementById('pm-projects-list');
@@ -619,23 +723,23 @@ window.promptDeleteProject = async function(id) {
     showToast(`Progetto "${name}" eliminato.`, 'success');
 };
 
-window.savePmProjectPasswords = async function(id) {
-    const teamPassword = (document.getElementById(`pm-team-pwd-${id}`)?.value || '').trim();
-    const capoTeamPassword = (document.getElementById(`pm-capo-pwd-${id}`)?.value || '').trim();
+window.savePmProjectPasswords = async function(id, fromPwm) {
+    if (!isSuperAdmin && !isPasswordManager) return;
+    const prefix = fromPwm ? 'pwm' : 'pm';
+    const teamPassword = (document.getElementById(`${prefix}-team-pwd-${id}`)?.value || '').trim();
+    const capoTeamPassword = (document.getElementById(`${prefix}-capo-pwd-${id}`)?.value || '').trim();
     if (!teamPassword && !capoTeamPassword) { showToast('Scrivi almeno una password da cambiare.', 'error'); return; }
     const updates = {};
     if (teamPassword) updates.teamPassword = await sha256Hex(teamPassword);
     if (capoTeamPassword) updates.capoTeamPassword = await sha256Hex(capoTeamPassword);
     await db.ref(`projects/${id}/appData/settings`).update(updates);
-    document.getElementById(`pm-team-pwd-${id}`).value = '';
-    document.getElementById(`pm-capo-pwd-${id}`).value = '';
     showToast('Password del progetto aggiornate.', 'success');
-    renderProjectsPanel();
+    if (fromPwm) renderPasswordManagerPanel(); else renderProjectsPanel();
 };
 
 window.enterProjectAsManager = async function(pid) {
     await attachProjectListener(pid);
-    finalizeLogin('admin', 'Project Manager', '');
+    finalizeLogin('admin', 'Amministratore Unico', '');
 };
 
 window.promptCreateProject = async function() {
@@ -725,12 +829,18 @@ window.migrateLegacyProject = async function() {
 };
 
 window.pmLogoutToStep1 = function() {
-    isProjectManager = false;
-    localStorage.removeItem('logistic_torre_pm');
+    isSuperAdmin = false;
+    localStorage.removeItem('logistic_torre_superadmin');
     showLoginStep('login-step-1');
 };
 
-// Il Project Manager torna all'elenco progetti senza dover reinserire la password PM
+window.pwmLogoutToStep1 = function() {
+    isPasswordManager = false;
+    localStorage.removeItem('logistic_torre_pwm');
+    showLoginStep('login-step-1');
+};
+
+// L'Amministratore Unico torna all'elenco progetti senza dover reinserire la password
 window.backToProjectsList = function() {
     if (_appDataRef) { _appDataRef.off(); _appDataRef = null; }
     if (typeof chatListener !== 'undefined' && chatListener) { try { db.ref(dbPath('chatMessages')).off('value', chatListener); } catch(e) {} chatListener = null; }
@@ -790,7 +900,7 @@ function initOneSignal(email, name, role) {
             appId: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
             promptOptions: { slidedown: { prompts: [{ type: 'push', autoPrompt: false }] } }
         });
-        // Tag di progetto sempre presente (anche per Capo Team/Project Manager, che non hanno email)
+        // Tag di progetto sempre presente (anche per Capo Team/Amministratore Unico, che non hanno email)
         // così le notifiche push possono essere mirate solo allo staff dello stesso progetto.
         if (currentProjectId) OneSignal.User.addTag('project', currentProjectId);
         if (email) {
@@ -1211,7 +1321,7 @@ function applyRole() {
     document.body.classList.add(`view-as-${currentRole}`);
 
     const btnBackToProjects = document.getElementById('btn-back-to-projects');
-    if (btnBackToProjects) btnBackToProjects.style.display = (isProjectManager && currentRole === 'admin') ? '' : 'none';
+    if (btnBackToProjects) btnBackToProjects.style.display = (isSuperAdmin && currentRole === 'admin') ? '' : 'none';
 
     if (currentRole === 'admin') {
         userAvatar.textContent = "CE";
@@ -1302,7 +1412,8 @@ if (btnGlobalLogout) {
             localStorage.removeItem('logistic_torre_username');
             localStorage.removeItem('logistic_torre_email');
             localStorage.removeItem('logistic_torre_project');
-            localStorage.removeItem('logistic_torre_pm');
+            localStorage.removeItem('logistic_torre_superadmin');
+            localStorage.removeItem('logistic_torre_pwm');
             window.location.reload();
         }
     });
@@ -1314,12 +1425,16 @@ firebase.auth().onAuthStateChanged((user) => {
     if (!user || _fbListenerStarted) return;
     _fbListenerStarted = true;
     loadProjectsList();
-    // Sessione già nota su questo dispositivo (utente fisso o Project Manager): entra subito nel suo progetto.
+    // Sessione già nota su questo dispositivo (utente fisso o Amministratore Unico): entra subito nel suo progetto.
     if (currentProjectId && localStorage.getItem('logistic_torre_auth') === 'true') {
         attachProjectListener(currentProjectId);
-    } else if (isProjectManager) {
-        // Project Manager già autenticato in precedenza ma senza un progetto attivo: mostra l'elenco progetti.
+    } else if (isSuperAdmin) {
+        // Amministratore Unico già autenticato in precedenza ma senza un progetto attivo: mostra l'elenco progetti.
         showLoginStep('login-step-pm-projects');
+    } else if (isPasswordManager) {
+        // Project Manager (solo password) già autenticato in precedenza: mostra il suo pannello.
+        showLoginStep('login-step-pwm-projects');
+        renderPasswordManagerPanel();
     }
 });
 
@@ -2351,7 +2466,7 @@ function renderProjectPasswordSettings() {
 }
 
 window.saveProjectPasswords = async function() {
-    if (currentRole !== 'admin' || !isProjectManager) return;
+    if (currentRole !== 'admin' || !isSuperAdmin) return;
     const teamPassword = (document.getElementById('project-team-password')?.value || '').trim();
     const capoTeamPassword = (document.getElementById('project-capoteam-password')?.value || '').trim();
     if (!teamPassword && !capoTeamPassword) { showToast('Scrivi almeno una password da cambiare.', 'error'); return; }
@@ -2380,7 +2495,7 @@ function renderProjectTelegramSettings() {
 }
 
 window.saveProjectTelegramConfig = function() {
-    if (currentRole !== 'admin' || !isProjectManager) return;
+    if (currentRole !== 'admin' || !isSuperAdmin) return;
     const botTokenMagazzino = (document.getElementById('project-tg-bot-magazzino')?.value || '').trim();
     const chatIdAdmin = (document.getElementById('project-tg-chat-admin')?.value || '').trim();
     const botTokenEventi = (document.getElementById('project-tg-bot-eventi')?.value || '').trim();
@@ -2399,11 +2514,11 @@ function renderRegisteredUsers() {
 
     renderAdminContactSettings();
 
-    // Sicurezza progetto e Notifiche Telegram: visibili e modificabili SOLO dal Project Manager.
+    // Sicurezza progetto e Notifiche Telegram: visibili e modificabili SOLO dall'Amministratore Unico.
     // Un Capo Team di progetto non deve vederle né trovarle popolate nel DOM (non solo nascoste via CSS).
     const pmOnlySection = document.getElementById('pm-only-security-section');
-    if (pmOnlySection) pmOnlySection.style.display = isProjectManager ? '' : 'none';
-    if (isProjectManager) {
+    if (pmOnlySection) pmOnlySection.style.display = isSuperAdmin ? '' : 'none';
+    if (isSuperAdmin) {
         renderProjectPasswordSettings();
         renderProjectTelegramSettings();
     } else {
