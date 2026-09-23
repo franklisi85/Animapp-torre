@@ -1,6 +1,6 @@
 # ANIMAPP — Manuale Tecnico Completo
 **Versione attuale:** app.js v4.22 · style.css v16 · SW animapp-v32  
-**URL produzione:** https://torreserenalogistic26.netlify.app  
+**URL produzione:** https://gestevenapp.netlify.app  
 **Data:** Aprile 2026
 
 ---
@@ -206,7 +206,7 @@ gsutil cors set cors.json gs://logistic-torreserena.firebasestorage.app
 ```
 
 Le origini autorizzate sono:
-- `https://torreserenalogistic26.netlify.app` (produzione)
+- `https://gestevenapp.netlify.app` (produzione)
 - `http://localhost:3000` e `http://localhost:5500` (sviluppo locale)
 
 ### 5.6 Migrazione automatica dati legacy
@@ -404,7 +404,7 @@ const STATIC_ASSETS = [
 ### 9.1 Procedura di deploy (drag & drop)
 
 1. Apri **https://app.netlify.com**
-2. Vai sul sito `torreserenalogistic26`
+2. Vai sul sito `gestevenapp`
 3. Trascina la **cartella `LOGISTIC TORRE`** nell'area "Deploys" (o clicca "Deploy manually")
 4. Netlify carica tutti i file e pubblica in ~30 secondi
 5. La nuova versione è immediatamente live
@@ -585,7 +585,7 @@ CACHE_NAME (sw.js)    : animapp-v32
 app.js versione       : ?v=4.22
 style.css versione    : ?v=16
 Firebase progetto     : logistic-torreserena (europe-west1)
-Netlify sito          : torreserenalogistic26.netlify.app
+Netlify sito          : gestevenapp.netlify.app
 ```
 
 **La prossima volta che modifichi codice, le versioni da aggiornare diventano:**

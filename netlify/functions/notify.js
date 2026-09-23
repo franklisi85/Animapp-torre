@@ -16,7 +16,7 @@ exports.handler = async (event) => {
         return { statusCode: 400, body: 'Missing title or message' };
     }
 
-    const baseUrl = 'https://torreserenalogistic26.netlify.app';
+    const baseUrl = 'https://gestevenapp.netlify.app';
     const targetUrl = view ? `${baseUrl}/#view=${view}` : baseUrl;
 
     const payload = {
