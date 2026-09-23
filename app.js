@@ -467,6 +467,9 @@ function renderProjectsPanel() {
                         <button type="button" class="btn-icon" style="color:rgba(255,255,255,0.6);" onclick="promptRenameProject('${escHtml(id)}')" title="Rinomina">
                             <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
                         </button>
+                        <button type="button" class="btn-icon" style="color:rgba(255,255,255,0.6);" onclick="promptDuplicateProject('${escHtml(id)}')" title="Duplica (solo struttura cartelle, senza file/link)">
+                            <span class="material-symbols-outlined" style="font-size:16px;">content_copy</span>
+                        </button>
                         <button type="button" class="btn-icon" style="color:#f87171;" onclick="promptDeleteProject('${escHtml(id)}')" title="Elimina progetto">
                             <span class="material-symbols-outlined" style="font-size:16px;">delete_forever</span>
                         </button>
@@ -557,6 +560,35 @@ function emptyProjectAppData() {
         folderNotes: {}, pageNotes: {}
     };
 }
+
+// Duplica un progetto come "scheletro": copia solo la struttura delle cartelle in
+// Informazioni e Documenti (nome, icona, gerarchia), SENZA i file/link/info al loro
+// interno e senza nessun altro dato operativo (staff, utenti, chat, eventi, ecc.).
+window.promptDuplicateProject = async function(sourceId) {
+    const sourceName = (projectsListCache[sourceId] && projectsListCache[sourceId].name) || sourceId;
+    const name = prompt(`Duplica "${sourceName}" — nome del nuovo progetto:\n(verrà copiata solo la struttura delle cartelle di "Informazioni e Documenti", vuote, senza i file/link contenuti)`);
+    if (!name || !name.trim()) return;
+
+    const snap = await db.ref(`projects/${sourceId}/appData/files`).once('value');
+    const sourceFiles = snap.val();
+    const sourceFilesArr = Array.isArray(sourceFiles) ? sourceFiles : Object.values(sourceFiles || {});
+    const folderSkeleton = sourceFilesArr
+        .filter(f => f && f.isFolder)
+        .map(f => ({
+            id: f.id, title: f.title, isFolder: true, parentId: f.parentId, icon: f.icon || 'folder',
+            // Le regole basate su ruolo si copiano; quelle su persone specifiche no, perché
+            // quelle persone non esistono nel nuovo progetto.
+            visibleTo: f.visibleTo === 'specific' ? 'all' : (f.visibleTo || 'all'),
+            allowedStaff: f.visibleTo === 'specific' ? [] : (f.allowedStaff || [])
+        }));
+
+    const id = 'p' + generateId();
+    await db.ref('projectsList/' + id).set({ name: name.trim(), createdAt: new Date().toISOString() });
+    const newAppData = emptyProjectAppData();
+    newAppData.files = folderSkeleton;
+    await db.ref('projects/' + id + '/appData').set(newAppData);
+    showToast(`Progetto "${name.trim()}" creato con ${folderSkeleton.length} cartelle da "${sourceName}".`, 'success');
+};
 
 // Migrazione una tantum dei dati storici (pre multi-progetto) nel progetto "Torre Serena"
 window.migrateLegacyProject = async function() {
