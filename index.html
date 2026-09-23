@@ -62,7 +62,7 @@
             .page-title h1 { font-size: 0.95rem; }
             .topbar-actions { gap: 6px; }
 
-            /* Nascondi il testo nel pulsante Capo Equipe, mostra solo icona */
+            /* Nascondi il testo nel pulsante Capo Team, mostra solo icona */
             #btn-admin-login { font-size: 0 !important; padding: 6px 8px; min-width: 0; }
             #btn-admin-login .material-symbols-outlined { font-size: 17px !important; }
 
@@ -169,6 +169,10 @@
                         <span class="material-symbols-outlined input-icon">badge</span>
                         <input type="text" id="login-lastname" placeholder="Cognome" autocomplete="family-name">
                     </div>
+                    <div class="login-input-group" style="margin-bottom:10px;">
+                        <span class="material-symbols-outlined input-icon">holiday_village</span>
+                        <select id="login-project-select" class="project-select"><option value="">Seleziona un progetto...</option></select>
+                    </div>
                 </div>
                 <p id="login-step1-error" class="login-error hidden" style="margin-bottom:4px;">Compila tutti i campi con una email valida.</p>
                 <div style="margin: 8px 0 4px; text-align:left;">
@@ -178,11 +182,12 @@
                     </label>
                 </div>
                 <p id="login-privacy-error" class="login-error hidden" style="margin-bottom:4px; text-align:left;">Devi accettare l'informativa privacy per continuare.</p>
-                <button type="button" class="login-btn" onclick="loginCheckIdentity()" style="margin-top:8px;">
+                <button type="button" class="login-btn" id="login-step1-btn" onclick="loginCheckIdentity()" style="margin-top:8px;">
                     <span class="material-symbols-outlined" style="font-size:18px;">arrow_forward</span>
                     Continua
                 </button>
-                <button type="button" class="login-back-btn" onclick="showAdminStep()" style="margin-top:6px; font-size:0.8rem; opacity:0.6;">Accesso Capo Equipe →</button>
+                <button type="button" class="login-back-btn" onclick="showAdminStep()" style="margin-top:6px; font-size:0.8rem; opacity:0.6;">Accesso Capo Team →</button>
+                <button type="button" class="login-back-btn" onclick="showPMStep()" style="margin-top:2px; font-size:0.76rem; opacity:0.45;">Project Manager →</button>
             </div>
 
             <!-- Step 2: Password (utente approvato) -->
@@ -204,24 +209,55 @@
             <div id="login-step-3" class="hidden" style="text-align:center;">
                 <span class="material-symbols-outlined" style="font-size:48px;color:var(--danger);margin-bottom:12px;">block</span>
                 <p style="color:rgba(255,255,255,0.8);font-size:0.95rem;font-weight:600;margin-bottom:8px;">Accesso negato</p>
-                <p style="color:rgba(255,255,255,0.5);font-size:0.82rem;line-height:1.5;margin-bottom:12px;">Questa email è stata bloccata dall'amministratore. Contatta il Capo Equipe per richiedere accesso.</p>
+                <p style="color:rgba(255,255,255,0.5);font-size:0.82rem;line-height:1.5;margin-bottom:12px;">Questa email è stata bloccata dall'amministratore. Contatta il Capo Team per richiedere accesso.</p>
                 <div id="login-step3-contact" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;"></div>
                 <button type="button" class="login-back-btn" onclick="backToStep1()">← Torna indietro</button>
             </div>
 
-            <!-- Step Admin: password admin -->
+            <!-- Step Admin: Capo Team di un progetto -->
             <div id="login-step-admin" class="hidden">
-                <p style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Capo Equipe</p>
+                <p style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Capo Team</p>
+                <div class="login-input-group" style="margin-bottom:10px;">
+                    <span class="material-symbols-outlined input-icon">holiday_village</span>
+                    <select id="login-admin-project-select" class="project-select"><option value="">Seleziona un progetto...</option></select>
+                </div>
                 <div class="login-input-group" style="margin-bottom:4px;">
                     <span class="material-symbols-outlined input-icon">admin_panel_settings</span>
-                    <input type="password" id="login-admin-pwd" placeholder="Password amministratore" autocomplete="current-password">
+                    <input type="password" id="login-admin-pwd" placeholder="Password Capo Team" autocomplete="current-password">
                 </div>
                 <p id="login-admin-error" class="login-error hidden" style="margin-bottom:4px;">Password errata.</p>
                 <button type="button" class="login-btn" onclick="loginAdmin()" style="margin-top:8px;">
                     <span class="material-symbols-outlined" style="font-size:18px;">shield</span>
-                    Accedi come Admin
+                    Accedi come Capo Team
                 </button>
                 <button type="button" class="login-back-btn" onclick="backToStep1()">← Torna indietro</button>
+            </div>
+
+            <!-- Step PM: password Project Manager -->
+            <div id="login-step-pm" class="hidden">
+                <p style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Project Manager</p>
+                <div class="login-input-group" style="margin-bottom:4px;">
+                    <span class="material-symbols-outlined input-icon">workspace_premium</span>
+                    <input type="password" id="login-pm-pwd" placeholder="Password Project Manager" autocomplete="current-password">
+                </div>
+                <p id="login-pm-error" class="login-error hidden" style="margin-bottom:4px;">Password errata.</p>
+                <button type="button" class="login-btn" onclick="loginProjectManager()" style="margin-top:8px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;">workspace_premium</span>
+                    Accedi come Project Manager
+                </button>
+                <button type="button" class="login-back-btn" onclick="backToStep1()">← Torna indietro</button>
+            </div>
+
+            <!-- Step PM: elenco/gestione progetti -->
+            <div id="login-step-pm-projects" class="hidden" style="text-align:left;">
+                <p style="color:rgba(255,255,255,0.7);font-size:0.9rem;margin-bottom:12px;text-align:center;">Seleziona un progetto da gestire</p>
+                <div id="pm-projects-list"></div>
+                <button type="button" class="login-btn" onclick="promptCreateProject()" style="margin-top:6px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;">add_circle</span>
+                    Nuovo progetto
+                </button>
+                <div id="pm-migrate-wrap"></div>
+                <button type="button" class="login-back-btn" onclick="pmLogoutToStep1()" style="margin-top:10px;">← Esci</button>
             </div>
 
             <p class="login-footer" id="login-footer-text">Accesso limitato al personale autorizzato</p>
@@ -297,8 +333,11 @@
 
                     <!-- Role Toggle -->
                     <div class="role-selector role-animatore-hide role-operatore-hide">
+                        <button id="btn-back-to-projects" class="btn small" style="margin-right:6px; display:none;" onclick="backToProjectsList()" title="Torna all'elenco progetti">
+                            <span class="material-symbols-outlined" style="font-size:16px;">holiday_village</span> Progetti
+                        </button>
                         <button id="btn-admin-login" class="btn small primary">
-                            <span class="material-symbols-outlined" style="font-size:16px;">lock</span> Accesso Capo Equipe
+                            <span class="material-symbols-outlined" style="font-size:16px;">lock</span> Accesso Capo Team
                         </button>
                     </div>
 
@@ -575,7 +614,7 @@
                         </div>
                         <div id="chat-no-permission" class="hidden" style="padding:14px 16px; text-align:center; border-top:1px solid var(--border); background:var(--bg-main); color:var(--text-muted); font-size:0.85rem;">
                             <span class="material-symbols-outlined" style="font-size:18px; vertical-align:middle; margin-right:5px;">lock</span>
-                            Non hai il permesso di scrivere. Contatta il Capo Equipe.
+                            Non hai il permesso di scrivere. Contatta il Capo Team.
                         </div>
                     </div>
                 </section>
@@ -594,7 +633,7 @@
                     <div class="card" style="padding:16px 24px; margin-bottom:24px;">
                         <h3 style="font-size:1rem; font-weight:600; display:flex; align-items:center; gap:8px; margin:0 0 6px;">
                             <span class="material-symbols-outlined" style="font-size:18px;">support_agent</span>
-                            Contatti Capo Equipe
+                            Contatti Capo Team
                         </h3>
                         <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:14px;">
                             Mostrati agli utenti bloccati nella schermata "Accesso negato", così sanno a chi scrivere per richiedere di rientrare.
@@ -615,6 +654,29 @@
                         </div>
                         <button class="btn primary" onclick="saveAdminContact()" style="margin-top:14px; padding:7px 14px; font-size:0.85rem;">
                             <span class="material-symbols-outlined" style="font-size:18px;">save</span> Salva contatti
+                        </button>
+                    </div>
+
+                    <div class="card" style="padding:16px 24px; margin-bottom:24px;">
+                        <h3 style="font-size:1rem; font-weight:600; display:flex; align-items:center; gap:8px; margin:0 0 6px;">
+                            <span class="material-symbols-outlined" style="font-size:18px;">password</span>
+                            Sicurezza progetto
+                        </h3>
+                        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:14px;">
+                            Password usate per accedere a QUESTO progetto. Lascia vuoto un campo per usare la password predefinita dell'app.
+                        </p>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                            <div class="form-group" style="margin:0;">
+                                <label>Password Staff (registrazione/accesso animatori)</label>
+                                <input type="text" id="project-team-password" class="form-control" placeholder="Password predefinita" autocomplete="off">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>Password Capo Team</label>
+                                <input type="text" id="project-capoteam-password" class="form-control" placeholder="Password predefinita" autocomplete="off">
+                            </div>
+                        </div>
+                        <button class="btn primary" onclick="saveProjectPasswords()" style="margin-top:14px; padding:7px 14px; font-size:0.85rem;">
+                            <span class="material-symbols-outlined" style="font-size:18px;">save</span> Salva password
                         </button>
                     </div>
 

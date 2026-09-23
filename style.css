@@ -609,6 +609,51 @@ th { background-color: #f8fafc; font-weight: 600; color: var(--text-muted); font
     color: var(--primary);
 }
 
+.login-input-group select {
+    width: 100%;
+    min-width: 0;
+    padding: 14px 14px 14px 50px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    color: #f8fafc;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    outline: none;
+    transition: all 0.3s ease;
+    appearance: none;
+}
+
+.login-input-group select:focus {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.08);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.login-input-group select option {
+    background: #1e293b;
+    color: #f8fafc;
+}
+
+.project-picker-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 10px;
+    text-align: left;
+}
+
+.project-picker-card .name {
+    color: #f8fafc;
+    font-weight: 600;
+    font-size: 0.92rem;
+}
+
 /* Error Message */
 .login-error {
     color: #f87171;
@@ -679,10 +724,10 @@ th { background-color: #f8fafc; font-weight: 600; color: var(--text-muted); font
 }
 
 /* Login steps */
-#login-step-1, #login-step-2, #login-step-3, #login-step-admin {
+#login-step-1, #login-step-2, #login-step-3, #login-step-admin, #login-step-pm, #login-step-pm-projects {
     display: flex; flex-direction: column; gap: 0; width: 100%;
 }
-#login-step-1.hidden, #login-step-2.hidden, #login-step-3.hidden, #login-step-admin.hidden { display: none !important; }
+#login-step-1.hidden, #login-step-2.hidden, #login-step-3.hidden, #login-step-admin.hidden, #login-step-pm.hidden, #login-step-pm-projects.hidden { display: none !important; }
 
 .login-staff-list { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; margin-bottom: 16px; }
 .login-staff-opt {

@@ -31,9 +31,113 @@
 // LOGIN GATE - AUTHENTICATION SYSTEM
 // ==========================================
 const LOGIN_PASSWORDS = {
-    team: "TeamStaff2026",
-    admin: "Torre2026"
+    team: "TeamStaff2026",       // fallback se un progetto non ha una password staff propria
+    admin: "Torre2026",          // fallback se un progetto non ha una password Capo Team propria
+    projectManager: "PM-Torre2026!" // password provvisoria — cambiala dal pannello Progetti
 };
+
+// ==========================================
+// MULTI-PROGETTO — stato e helper percorsi Firebase
+// ==========================================
+// Ogni "progetto" (villaggio/stagione) ha i suoi dati isolati sotto projects/{id}/...
+// currentProjectId indica il progetto attivo in questa sessione/dispositivo.
+const LEGACY_PROJECT_ID = 'torre-serena'; // id fisso del progetto migrato dai dati storici (retrocompatibilità)
+let currentProjectId = localStorage.getItem('logistic_torre_project') || null;
+let projectsListCache = {}; // { [projectId]: { name, createdAt } } — indice leggero, sempre caricato
+let projectsListLoaded = false;
+let isProjectManager = localStorage.getItem('logistic_torre_pm') === 'true'; // entrato come Project Manager
+
+// Sessioni già loggate PRIMA dell'introduzione multi-progetto non hanno un projectId salvato:
+// le agganciamo automaticamente al progetto storico migrato, così non serve rifare il login.
+if (!currentProjectId && localStorage.getItem('logistic_torre_auth') === 'true') {
+    currentProjectId = LEGACY_PROJECT_ID;
+    localStorage.setItem('logistic_torre_project', currentProjectId);
+}
+
+function dbPath(sub) {
+    if (!currentProjectId) throw new Error('Nessun progetto attivo: dbPath chiamato prima della selezione del progetto.');
+    return `projects/${currentProjectId}/${sub}`;
+}
+
+function storagePath(sub) {
+    if (!currentProjectId) throw new Error('Nessun progetto attivo: storagePath chiamato prima della selezione del progetto.');
+    return `projects/${currentProjectId}/${sub}`;
+}
+
+// Chiave Firebase valida per email (. # $ [ ] non ammessi nelle chiavi RTDB)
+function emailKey(email) {
+    return (email || '').replace(/[.#$\[\]]/g, ',');
+}
+
+// Indice leggero { [projectId]: {name, createdAt} } — sempre caricato, usato per i menu a tendina
+// e per sapere in quali progetti cercare un'email in fase di login.
+function loadProjectsList() {
+    db.ref('projectsList').on('value', (snap) => {
+        projectsListCache = snap.val() || {};
+        projectsListLoaded = true;
+        populateProjectDropdowns();
+        if (typeof renderProjectsPanel === 'function') renderProjectsPanel();
+    });
+}
+
+function populateProjectDropdowns() {
+    document.querySelectorAll('.project-select').forEach(sel => {
+        const prev = sel.value;
+        const ids = Object.keys(projectsListCache);
+        sel.innerHTML = ids.length === 0
+            ? '<option value="">Nessun progetto disponibile</option>'
+            : '<option value="">Seleziona un progetto...</option>' + ids.map(id => `<option value="${escHtml(id)}">${escHtml(projectsListCache[id].name || id)}</option>`).join('');
+        if (ids.includes(prev)) sel.value = prev;
+    });
+}
+
+// Cerca in quale progetto è registrata questa email (fan-out sui progetti noti).
+// Ritorna { projectId, user } oppure null.
+async function findUserProjectByEmail(email) {
+    const ids = Object.keys(projectsListCache);
+    const results = await Promise.all(ids.map(pid =>
+        db.ref(`projects/${pid}/appData/registeredUsers`).orderByChild('email').equalTo(email).once('value')
+            .then(snap => ({ pid, snap }))
+            .catch(() => ({ pid, snap: null }))
+    ));
+    for (const { pid, snap } of results) {
+        if (snap && snap.exists()) {
+            const val = snap.val();
+            const user = Object.values(val)[0];
+            return { projectId: pid, user };
+        }
+    }
+    return null;
+}
+
+// Verifica se l'email è bloccata in un progetto (indice leggero mantenuto da deleteRegisteredUser/unblockUser).
+async function findBlockedProjectId(email) {
+    const snap = await db.ref('blockedIndex/' + emailKey(email)).once('value');
+    return snap.exists() ? snap.val() : null;
+}
+
+// Attiva l'ascolto dati per un progetto: stacca l'eventuale listener precedente (utile quando
+// un Project Manager passa da un progetto all'altro) e risolve la Promise al primo caricamento.
+let _appDataRef = null;
+function attachProjectListener(pid) {
+    return new Promise((resolve) => {
+        const projectChanged = currentProjectId !== pid;
+        if (_appDataRef) _appDataRef.off();
+        if (projectChanged && typeof chatListener !== 'undefined' && chatListener) {
+            try { db.ref(dbPath('chatMessages')).off('value', chatListener); } catch(e) {}
+            chatListener = null;
+            if (typeof chatInitialized !== 'undefined') chatInitialized = false;
+        }
+        currentProjectId = pid;
+        localStorage.setItem('logistic_torre_project', pid);
+        _appDataRef = db.ref(dbPath('appData'));
+        let firstSnapshot = true;
+        _appDataRef.on('value', (snapshot) => {
+            onProjectDataSnapshot(snapshot);
+            if (firstSnapshot) { firstSnapshot = false; resolve(); }
+        });
+    });
+}
 
 // ==========================================
 // UTILITY: ID GENERATION & TOAST NOTIFICATIONS
@@ -77,7 +181,7 @@ if (localStorage.getItem('logistic_torre_auth') === 'true') {
 let pendingLoginUser = null;
 
 function showLoginStep(stepId) {
-    ['login-step-1','login-step-2','login-step-3','login-step-admin'].forEach(id => {
+    ['login-step-1','login-step-2','login-step-3','login-step-admin','login-step-pm','login-step-pm-projects'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
@@ -93,7 +197,7 @@ function findRegisteredUserByEmail(email) {
     return users.find(u => u && u.email === email) || null;
 }
 
-// Popola i contatti del Capo Equipe nella schermata "Accesso negato"
+// Popola i contatti del Capo Team nella schermata "Accesso negato"
 function renderBlockedContactInfo() {
     const container = document.getElementById('login-step3-contact');
     if (!container) return;
@@ -122,7 +226,9 @@ window.checkKnownEmail = function() {
     const nameFields = document.getElementById('login-name-fields');
     const welcomeEl = document.getElementById('login-step1-welcome');
     if (!nameFields) return;
-    const existing = email.includes('@') ? findRegisteredUserByEmail(email) : null;
+    // Riconoscimento istantaneo possibile solo se questo dispositivo è già legato a un progetto:
+    // per un dispositivo nuovo la ricerca cross-progetto avviene solo al click su "Continua".
+    const existing = (currentProjectId && email.includes('@')) ? findRegisteredUserByEmail(email) : null;
     if (existing) {
         nameFields.classList.add('hidden');
         if (welcomeEl) { welcomeEl.textContent = `Bentornato, ${existing.firstName}! Inserisci solo la password per continuare.`; welcomeEl.classList.remove('hidden'); }
@@ -132,39 +238,63 @@ window.checkKnownEmail = function() {
     }
 };
 
-window.loginCheckIdentity = function() {
+window.loginCheckIdentity = async function() {
+    const errEl = document.getElementById('login-step1-error');
+    const btn = document.getElementById('login-step1-btn');
     try {
-        const email     = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
-        const errEl = document.getElementById('login-step1-error');
+        const email = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
         const privacyEl = document.getElementById('privacy-consent');
         const privacyErrEl = document.getElementById('login-privacy-error');
 
-        if (!firebaseDataLoaded) {
+        if (!projectsListLoaded) {
             errEl.textContent = 'Connessione in corso, riprova tra un secondo...';
             errEl.classList.remove('hidden'); return;
         }
-
         if (!email || !email.includes('@')) {
             errEl.textContent = 'Inserisci una email valida.';
             errEl.classList.remove('hidden'); return;
         }
 
-        const existing = findRegisteredUserByEmail(email);
+        // 1) Controllo locale veloce (dispositivo già legato a un progetto)
+        let found = (currentProjectId && firebaseDataLoaded) ? findRegisteredUserByEmail(email) : null;
+        let foundProjectId = found ? currentProjectId : null;
 
-        // Nome e Cognome servono solo per una registrazione nuova:
-        // un utente già noto viene riconosciuto dalla sola email.
         const firstName = (document.getElementById('login-firstname')?.value || '').trim();
         const lastName  = (document.getElementById('login-lastname')?.value || '').trim();
-        if (!existing && (!firstName || !lastName)) {
-            errEl.textContent = 'Compila tutti i campi con una email valida.';
+        const projectSelect = document.getElementById('login-project-select');
+        const selectedProjectId = projectSelect ? projectSelect.value : '';
+
+        // 2) Se non trovato localmente, cerca in tutti i progetti noti
+        if (!found) {
+            if (btn) btn.disabled = true;
+            errEl.textContent = 'Verifica in corso...';
+            errEl.classList.remove('hidden');
+            try {
+                const result = await findUserProjectByEmail(email);
+                if (result) { found = result.user; foundProjectId = result.projectId; }
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        if (!found && (!firstName || !lastName || !selectedProjectId)) {
+            errEl.textContent = 'Compila tutti i campi, incluso il progetto.';
             errEl.classList.remove('hidden'); return;
         }
-        errEl.textContent = 'Compila tutti i campi con una email valida.';
         errEl.classList.add('hidden');
         if (!privacyEl || !privacyEl.checked) {
             privacyErrEl.classList.remove('hidden'); return;
         }
         privacyErrEl.classList.add('hidden');
+
+        const targetProjectId = foundProjectId || selectedProjectId;
+
+        // Se il progetto target non è (ancora) quello caricato, caricalo prima di procedere
+        if (targetProjectId !== currentProjectId || !firebaseDataLoaded) {
+            if (btn) btn.disabled = true;
+            await attachProjectListener(targetProjectId);
+            if (btn) btn.disabled = false;
+        }
 
         if ((appData.blockedEmails || []).includes(email)) {
             renderBlockedContactInfo();
@@ -172,10 +302,9 @@ window.loginCheckIdentity = function() {
         }
 
         const welcome = document.getElementById('login-step2-welcome');
-
-        if (existing) {
-            pendingLoginUser = existing;
-            if (welcome) welcome.textContent = `Bentornato, ${existing.firstName}!`;
+        if (found) {
+            pendingLoginUser = found;
+            if (welcome) welcome.textContent = `Bentornato, ${found.firstName}!`;
         } else {
             pendingLoginUser = { isNew: true, firstName, lastName, email };
             if (welcome) welcome.textContent = `Benvenuto, ${firstName}!`;
@@ -183,7 +312,7 @@ window.loginCheckIdentity = function() {
         showLoginStep('login-step-2');
         setTimeout(() => document.getElementById('login-team-pwd')?.focus(), 50);
     } catch(e) {
-        const errEl = document.getElementById('login-step1-error');
+        if (btn) btn.disabled = false;
         if (errEl) { errEl.textContent = 'Errore: ' + e.message; errEl.classList.remove('hidden'); }
     }
 };
@@ -191,7 +320,8 @@ window.loginCheckIdentity = function() {
 window.loginWithPassword = function() {
     const pwd = document.getElementById('login-team-pwd')?.value || '';
     const errEl = document.getElementById('login-step2-error');
-    if (pwd !== LOGIN_PASSWORDS.team) {
+    const expectedPwd = (appData.settings && appData.settings.teamPassword) || LOGIN_PASSWORDS.team;
+    if (pwd !== expectedPwd) {
         errEl.textContent = 'Password errata. Riprova.';
         errEl.classList.remove('hidden');
         document.getElementById('login-team-pwd').value = '';
@@ -206,7 +336,7 @@ window.loginWithPassword = function() {
     }
     if (pendingLoginUser.isNew) {
         // Controllo fresco su Firebase per evitare duplicati in caso di race condition
-        db.ref('appData/registeredUsers').once('value', snapshot => {
+        db.ref(dbPath('appData/registeredUsers')).once('value', snapshot => {
             const usersMap = snapshot.val() || {};
             const usersArr = Object.values(usersMap);
             const alreadyExists = usersArr.find(u => u.email === pendingLoginUser.email);
@@ -214,7 +344,7 @@ window.loginWithPassword = function() {
                 if (alreadyExists.role === 'pending') alreadyExists.role = 'animatore';
                 alreadyExists.lastLogin = new Date().toISOString();
                 if (!alreadyExists.privacyConsentAt) alreadyExists.privacyConsentAt = new Date().toISOString();
-                db.ref(`appData/registeredUsers/${alreadyExists.id}`).set(alreadyExists);
+                db.ref(dbPath(`appData/registeredUsers/${alreadyExists.id}`)).set(alreadyExists);
                 finalizeLogin(alreadyExists.role, `${alreadyExists.firstName} ${alreadyExists.lastName}`, alreadyExists.email);
                 return;
             }
@@ -229,7 +359,7 @@ window.loginWithPassword = function() {
                 privacyConsentAt: new Date().toISOString()
             };
             // Scrivi solo il singolo utente sul suo nodo — evita race condition con registrazioni simultane
-            db.ref(`appData/registeredUsers/${newUser.id}`).set(newUser);
+            db.ref(dbPath(`appData/registeredUsers/${newUser.id}`)).set(newUser);
             finalizeLogin('animatore', `${newUser.firstName} ${newUser.lastName}`, newUser.email);
         });
     } else {
@@ -238,7 +368,7 @@ window.loginWithPassword = function() {
         pendingLoginUser.lastLogin = new Date().toISOString();
         if (!pendingLoginUser.privacyConsentAt) pendingLoginUser.privacyConsentAt = new Date().toISOString();
         // Aggiorna solo questo utente, non l'intero array
-        db.ref(`appData/registeredUsers/${pendingLoginUser.id}`).set(pendingLoginUser);
+        db.ref(dbPath(`appData/registeredUsers/${pendingLoginUser.id}`)).set(pendingLoginUser);
         finalizeLogin(pendingLoginUser.role, `${pendingLoginUser.firstName} ${pendingLoginUser.lastName}`, pendingLoginUser.email);
     }
 };
@@ -254,19 +384,155 @@ window.showAdminStep = function() {
     setTimeout(() => document.getElementById('login-admin-pwd')?.focus(), 50);
 };
 
-window.loginAdmin = function() {
+window.loginAdmin = async function() {
+    const pidSelect = document.getElementById('login-admin-project-select');
+    const pid = pidSelect ? pidSelect.value : '';
     const pwd = document.getElementById('login-admin-pwd')?.value || '';
     const errEl = document.getElementById('login-admin-error');
-    if (pwd !== LOGIN_PASSWORDS.admin) {
+    if (!pid) {
+        errEl.textContent = 'Seleziona un progetto.';
         errEl.classList.remove('hidden');
-        document.getElementById('login-admin-pwd').value = '';
-        document.getElementById('login-admin-pwd').focus();
+        return;
+    }
+    try {
+        const snap = await db.ref(`projects/${pid}/appData/settings/capoTeamPassword`).once('value');
+        const expected = snap.val() || LOGIN_PASSWORDS.admin;
+        if (pwd !== expected) {
+            errEl.textContent = 'Password errata.';
+            errEl.classList.remove('hidden');
+            document.getElementById('login-admin-pwd').value = '';
+            document.getElementById('login-admin-pwd').focus();
+            loginCard.classList.add('shake');
+            setTimeout(() => loginCard.classList.remove('shake'), 500);
+            return;
+        }
+        errEl.classList.add('hidden');
+        await attachProjectListener(pid);
+        finalizeLogin('admin', 'Capo Team', '');
+    } catch(e) {
+        errEl.textContent = 'Errore: ' + e.message;
+        errEl.classList.remove('hidden');
+    }
+};
+
+window.showPMStep = function() {
+    showLoginStep('login-step-pm');
+    setTimeout(() => document.getElementById('login-pm-pwd')?.focus(), 50);
+};
+
+window.loginProjectManager = function() {
+    const pwd = document.getElementById('login-pm-pwd')?.value || '';
+    const errEl = document.getElementById('login-pm-error');
+    if (pwd !== LOGIN_PASSWORDS.projectManager) {
+        errEl.classList.remove('hidden');
+        document.getElementById('login-pm-pwd').value = '';
+        document.getElementById('login-pm-pwd').focus();
         loginCard.classList.add('shake');
         setTimeout(() => loginCard.classList.remove('shake'), 500);
         return;
     }
     errEl.classList.add('hidden');
-    finalizeLogin('admin', 'Capo Equipe', '');
+    isProjectManager = true;
+    localStorage.setItem('logistic_torre_pm', 'true');
+    showLoginStep('login-step-pm-projects');
+    renderProjectsPanel();
+};
+
+// Elenco progetti mostrato al Project Manager per scegliere/creare quale gestire
+function renderProjectsPanel() {
+    const list = document.getElementById('pm-projects-list');
+    if (!list) return;
+    const ids = Object.keys(projectsListCache);
+    list.innerHTML = ids.length === 0
+        ? '<p style="color:rgba(255,255,255,0.5); font-size:0.85rem; margin-bottom:10px;">Nessun progetto ancora creato.</p>'
+        : ids.map(id => `
+            <div class="project-picker-card">
+                <span class="name">${escHtml(projectsListCache[id].name || id)}</span>
+                <button type="button" class="btn small primary" onclick="enterProjectAsManager('${escHtml(id)}')">Entra</button>
+            </div>
+        `).join('');
+    const migrateWrap = document.getElementById('pm-migrate-wrap');
+    if (migrateWrap) {
+        migrateWrap.innerHTML = ids.length === 0
+            ? `<button type="button" class="login-back-btn" style="margin-top:10px;" onclick="migrateLegacyProject()">Migra dati esistenti come "Torre Serena"</button>`
+            : '';
+    }
+}
+
+window.enterProjectAsManager = async function(pid) {
+    await attachProjectListener(pid);
+    finalizeLogin('admin', 'Project Manager', '');
+};
+
+window.promptCreateProject = async function() {
+    const name = prompt('Nome del nuovo progetto (es. nome del villaggio o stagione):');
+    if (!name || !name.trim()) return;
+    const id = 'p' + generateId();
+    await db.ref('projectsList/' + id).set({ name: name.trim(), createdAt: new Date().toISOString() });
+    await db.ref('projects/' + id + '/appData').set(emptyProjectAppData());
+    showToast(`Progetto "${name.trim()}" creato.`, 'success');
+};
+
+function emptyProjectAppData() {
+    return {
+        sectors: [], staff: [], events: [], notifications: [], sectorGroups: [], operatori: [],
+        avvisi: [], ordineGiorno: [], files: [], registeredUsers: [], blockedEmails: [],
+        settings: { blockRequests: false, adminContact: { email: '', whatsapp: '', telegram: '' }, teamPassword: '', capoTeamPassword: '' },
+        dashboardSectionNames: { avvisi: 'Avvisi', odg: 'Ordine del Giorno', richieste: 'Le Mie Richieste' },
+        folderNotes: {}, pageNotes: {}
+    };
+}
+
+// Migrazione una tantum dei dati storici (pre multi-progetto) nel progetto "Torre Serena"
+window.migrateLegacyProject = async function() {
+    if (projectsListCache[LEGACY_PROJECT_ID]) {
+        showToast('Il progetto "Torre Serena" esiste già.', 'error');
+        return;
+    }
+    try {
+        const [oldAppSnap, oldChatSnap] = await Promise.all([
+            db.ref('appData').once('value'),
+            db.ref('chatMessages').once('value')
+        ]);
+        if (!oldAppSnap.exists()) {
+            showToast('Nessun dato storico trovato da migrare.', 'error');
+            return;
+        }
+        const oldAppData = oldAppSnap.val();
+        if (!oldAppData.settings) oldAppData.settings = {};
+        if (!oldAppData.settings.teamPassword) oldAppData.settings.teamPassword = LOGIN_PASSWORDS.team;
+        if (!oldAppData.settings.capoTeamPassword) oldAppData.settings.capoTeamPassword = LOGIN_PASSWORDS.admin;
+        await db.ref('projectsList/' + LEGACY_PROJECT_ID).set({ name: 'Torre Serena', createdAt: new Date().toISOString() });
+        await db.ref('projects/' + LEGACY_PROJECT_ID + '/appData').set(oldAppData);
+        if (oldChatSnap.exists()) {
+            await db.ref('projects/' + LEGACY_PROJECT_ID + '/chatMessages').set(oldChatSnap.val());
+        }
+        showToast('Migrazione completata: progetto "Torre Serena" creato.', 'success');
+    } catch(e) {
+        showToast('Errore durante la migrazione: ' + e.message, 'error');
+    }
+};
+
+window.pmLogoutToStep1 = function() {
+    isProjectManager = false;
+    localStorage.removeItem('logistic_torre_pm');
+    showLoginStep('login-step-1');
+};
+
+// Il Project Manager torna all'elenco progetti senza dover reinserire la password PM
+window.backToProjectsList = function() {
+    if (_appDataRef) { _appDataRef.off(); _appDataRef = null; }
+    if (typeof chatListener !== 'undefined' && chatListener) { try { db.ref(dbPath('chatMessages')).off('value', chatListener); } catch(e) {} chatListener = null; }
+    if (typeof chatInitialized !== 'undefined') chatInitialized = false;
+    currentProjectId = null;
+    firebaseDataLoaded = false;
+    localStorage.removeItem('logistic_torre_project');
+    localStorage.removeItem('logistic_torre_auth');
+    appContainer.classList.add('hidden');
+    loginGate.classList.remove('hidden');
+    loginGate.style.display = '';
+    showLoginStep('login-step-pm-projects');
+    renderProjectsPanel();
 };
 
 window.backToStep1 = function() {
@@ -300,6 +566,7 @@ function finalizeLogin(role, name, email) {
     loginGate.classList.add('hidden');
     setTimeout(() => { appContainer.classList.remove('hidden'); loginGate.style.display = 'none'; }, 600);
     initOneSignal(email, name, role);
+    if (typeof initChat === 'function') initChat();
 }
 
 // ==========================================
@@ -685,7 +952,7 @@ const DEFAULT_DATA = {
     files: [],
     registeredUsers: [],
     blockedEmails: [],
-    settings: { blockRequests: false, adminContact: { email: '', whatsapp: '', telegram: '' } },
+    settings: { blockRequests: false, adminContact: { email: '', whatsapp: '', telegram: '' }, teamPassword: '', capoTeamPassword: '' },
     dashboardSectionNames: { avvisi: 'Avvisi', odg: 'Ordine del Giorno', richieste: 'Le Mie Richieste' }
 };
 
@@ -697,7 +964,7 @@ let nameOverlayShown = false;
 let firebaseDataLoaded = false;
 
 window.saveData = function() {
-    db.ref('appData').set(appData);
+    db.ref(dbPath('appData')).set(appData);
 }
 
 // Pulizia sezione file
@@ -721,26 +988,29 @@ const userAvatar = document.getElementById('user-avatar');
 function applyRole() {
     document.body.classList.remove('view-as-admin', 'view-as-responsabile', 'view-as-animatore', 'view-as-operatore');
     document.body.classList.add(`view-as-${currentRole}`);
-    
+
+    const btnBackToProjects = document.getElementById('btn-back-to-projects');
+    if (btnBackToProjects) btnBackToProjects.style.display = (isProjectManager && currentRole === 'admin') ? '' : 'none';
+
     if (currentRole === 'admin') {
         userAvatar.textContent = "CE";
         userAvatar.style.background = "linear-gradient(135deg, var(--danger), var(--accent))";
-        btnAdminLogin.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">logout</span> Esci da Capo Equipe';
+        btnAdminLogin.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">logout</span> Esci da Capo Team';
         btnAdminLogin.classList.remove('primary');
     } else if (currentRole === 'operatore') {
         userAvatar.textContent = "OPR";
         userAvatar.style.background = "linear-gradient(135deg, #f59e0b, #d97706)";
-        btnAdminLogin.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">lock</span> Accesso Capo Equipe';
+        btnAdminLogin.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">lock</span> Accesso Capo Team';
         btnAdminLogin.classList.add('primary');
     } else if (currentRole === 'animatore') {
         userAvatar.textContent = "STF";
         userAvatar.style.background = "linear-gradient(135deg, #10b981, #059669)";
-        btnAdminLogin.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">lock</span> Accesso Capo Equipe';
+        btnAdminLogin.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">lock</span> Accesso Capo Team';
         btnAdminLogin.classList.add('primary');
     } else {
         userAvatar.textContent = "RSP";
         userAvatar.style.background = "linear-gradient(135deg, var(--primary), var(--secondary))";
-        btnAdminLogin.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">lock</span> Accesso Capo Equipe';
+        btnAdminLogin.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">lock</span> Accesso Capo Team';
         btnAdminLogin.classList.add('primary');
     }
     
@@ -761,7 +1031,7 @@ if (btnAdminLogin) btnAdminLogin.addEventListener('click', () => {
 });
 
 function openAdminLoginModal() {
-    openModal("Accesso Capo Equipe", `
+    openModal("Accesso Capo Team", `
         <div class="form-group">
             <label>Password Amministratore</label>
             <input type="password" id="admin-pwd-input" class="form-control" placeholder="Inserisci la password" autocomplete="current-password">
@@ -780,7 +1050,8 @@ function openAdminLoginModal() {
 
 window.submitAdminLogin = function() {
     const pwd = document.getElementById('admin-pwd-input')?.value || '';
-    if (pwd === LOGIN_PASSWORDS.admin) {
+    const expectedPwd = (appData.settings && appData.settings.capoTeamPassword) || LOGIN_PASSWORDS.admin;
+    if (pwd === expectedPwd) {
         currentRole = 'admin';
         localStorage.setItem('logistic_torre_role', currentRole);
         applyRole();
@@ -807,6 +1078,8 @@ if (btnGlobalLogout) {
             localStorage.removeItem('logistic_torre_role');
             localStorage.removeItem('logistic_torre_username');
             localStorage.removeItem('logistic_torre_email');
+            localStorage.removeItem('logistic_torre_project');
+            localStorage.removeItem('logistic_torre_pm');
             window.location.reload();
         }
     });
@@ -817,11 +1090,19 @@ let _fbListenerStarted = false;
 firebase.auth().onAuthStateChanged((user) => {
     if (!user || _fbListenerStarted) return;
     _fbListenerStarted = true;
-    startFirebaseListener();
+    loadProjectsList();
+    // Sessione già nota su questo dispositivo (utente fisso o Project Manager): entra subito nel suo progetto.
+    if (currentProjectId && localStorage.getItem('logistic_torre_auth') === 'true') {
+        attachProjectListener(currentProjectId);
+    } else if (isProjectManager) {
+        // Project Manager già autenticato in precedenza ma senza un progetto attivo: mostra l'elenco progetti.
+        showLoginStep('login-step-pm-projects');
+    }
 });
 
-function startFirebaseListener() {
-db.ref('appData').on('value', (snapshot) => {
+// Elabora uno snapshot di appData del progetto attivo (chiamata sia dal fast-path
+// automatico sia dopo la risoluzione del progetto durante il login).
+function onProjectDataSnapshot(snapshot) {
     firebaseDataLoaded = true;
     if (typeof window.checkKnownEmail === 'function') window.checkKnownEmail();
     if (snapshot.exists()) {
@@ -884,7 +1165,8 @@ db.ref('appData').on('value', (snapshot) => {
                 localStorage.removeItem('logistic_torre_role');
                 localStorage.removeItem('logistic_torre_username');
                 localStorage.removeItem('logistic_torre_email');
-                alert('Il tuo accesso è stato bloccato dall\'amministratore. Contatta il Capo Equipe.');
+                localStorage.removeItem('logistic_torre_project');
+                alert('Il tuo accesso è stato bloccato dall\'amministratore. Contatta il Capo Team.');
                 window.location.reload();
                 return;
             }
@@ -934,8 +1216,7 @@ db.ref('appData').on('value', (snapshot) => {
         renderDashboard();
         updateNotificationsBadge();
     }
-});
-} // end startFirebaseListener
+}
 
 // Notifications Logic
 const btnNotifications = document.getElementById('btn-notifications');
@@ -1808,10 +2089,10 @@ window.saveAssignedGroups = function(userId) {
 // ==========================================
 // REGISTERED USERS PANEL (Admin only)
 // ==========================================
-const ROLE_LABELS = { admin: 'Capo Equipe', responsabile: 'Responsabile', animatore: 'Animatore', operatore: 'Operatore' };
+const ROLE_LABELS = { admin: 'Capo Team', responsabile: 'Responsabile', animatore: 'Animatore', operatore: 'Operatore' };
 const ROLE_COLORS = { admin: 'var(--danger)', responsabile: 'var(--primary)', animatore: 'var(--secondary)', operatore: 'var(--accent)' };
 
-// Contatti Capo Equipe mostrati agli utenti bloccati nella schermata di login
+// Contatti Capo Team mostrati agli utenti bloccati nella schermata di login
 function renderAdminContactSettings() {
     const emailEl = document.getElementById('admin-contact-email');
     const waEl    = document.getElementById('admin-contact-whatsapp');
@@ -1831,7 +2112,28 @@ window.saveAdminContact = function() {
     if (!appData.settings) appData.settings = {};
     appData.settings.adminContact = { email, whatsapp, telegram };
     saveData();
-    showToast('Contatti Capo Equipe aggiornati.', 'success');
+    showToast('Contatti Capo Team aggiornati.', 'success');
+};
+
+// Password Staff/Capo Team specifiche di questo progetto (vuoto = usa il default dell'app)
+function renderProjectPasswordSettings() {
+    const teamEl = document.getElementById('project-team-password');
+    const capoEl = document.getElementById('project-capoteam-password');
+    if (!teamEl) return;
+    const s = appData.settings || {};
+    if (document.activeElement !== teamEl) teamEl.value = s.teamPassword || '';
+    if (document.activeElement !== capoEl) capoEl.value = s.capoTeamPassword || '';
+}
+
+window.saveProjectPasswords = function() {
+    if (currentRole !== 'admin') return;
+    const teamPassword = (document.getElementById('project-team-password')?.value || '').trim();
+    const capoTeamPassword = (document.getElementById('project-capoteam-password')?.value || '').trim();
+    if (!appData.settings) appData.settings = {};
+    appData.settings.teamPassword = teamPassword;
+    appData.settings.capoTeamPassword = capoTeamPassword;
+    saveData();
+    showToast('Password del progetto aggiornate.', 'success');
 };
 
 function renderRegisteredUsers() {
@@ -1841,6 +2143,7 @@ function renderRegisteredUsers() {
     if (!approvedContainer) return;
 
     renderAdminContactSettings();
+    renderProjectPasswordSettings();
     wireUsersSearch();
     const users   = appData.registeredUsers || [];
     const blocked = appData.blockedEmails   || [];
@@ -1944,6 +2247,7 @@ window.deleteRegisteredUser = function(id) {
     if (!appData.blockedEmails.includes(user.email)) appData.blockedEmails.push(user.email);
     appData.registeredUsers = appData.registeredUsers.filter(u => u.id !== id);
     saveData();
+    db.ref('blockedIndex/' + emailKey(user.email)).set(currentProjectId).catch(() => {});
     showToast(`${user.firstName} ${user.lastName} rimosso e bloccato.`, 'success');
 };
 
@@ -1953,7 +2257,7 @@ window.deleteUserOnly = function(fbKey) {
     if (!user) return;
     if (!confirm(`Eliminare l'account doppione di ${user.firstName} ${user.lastName}?\nATTENZIONE: l'email NON verrà bloccata — potrà registrarsi di nuovo liberamente. Usa "Rimuovi e blocca" se invece vuoi vietargli l'accesso.`)) return;
     // Rimuove solo il nodo esatto su Firebase — non tocca nessun altro utente
-    db.ref(`appData/registeredUsers/${fbKey}`).remove();
+    db.ref(dbPath(`appData/registeredUsers/${fbKey}`)).remove();
     // Aggiorna l'array locale rimuovendo solo l'entry con questa chiave
     appData.registeredUsers = (appData.registeredUsers || []).filter(u => (u._fbKey || String(u.id)) !== fbKey);
     renderRegisteredUsers();
@@ -2013,7 +2317,7 @@ window.saveNewUser = function() {
         lastLogin: new Date().toISOString(),
         privacyConsentAt: new Date().toISOString()
     };
-    db.ref(`appData/registeredUsers/${newUser.id}`).set(newUser);
+    db.ref(dbPath(`appData/registeredUsers/${newUser.id}`)).set(newUser);
     modal.classList.add('hidden');
     showToast(`${firstName} ${lastName} aggiunto come ${ROLE_LABELS[role]}.`, 'success');
 };
@@ -2023,6 +2327,7 @@ window.unblockUser = function(email) {
     if (!confirm(`Sbloccare ${email}? Potrà accedere di nuovo come animatore.`)) return;
     appData.blockedEmails = (appData.blockedEmails || []).filter(e => e !== email);
     saveData();
+    db.ref('blockedIndex/' + emailKey(email)).remove().catch(() => {});
     showToast(`${email} sbloccato.`, 'success');
 };
 
@@ -2031,6 +2336,7 @@ window.deleteBlockedEmail = function(email) {
     if (!confirm(`Eliminare definitivamente ${email} dalla lista bloccati? L'email non sarà più bloccata ma non verrà riabilitata.`)) return;
     appData.blockedEmails = (appData.blockedEmails || []).filter(e => e !== email);
     saveData();
+    db.ref('blockedIndex/' + emailKey(email)).remove().catch(() => {});
     showToast(`${email} rimosso dalla lista bloccati.`, 'success');
 };
 
@@ -2588,7 +2894,7 @@ window.addAvviso = async function() {
         if (progressWrap) progressWrap.classList.remove('hidden');
         try {
             const fileId = generateId();
-            const ref = storage.ref(`avvisi/${fileId}/${file.name}`);
+            const ref = storage.ref(storagePath(`avvisi/${fileId}/${file.name}`));
             const task = ref.put(file);
             task.on('state_changed', snap => {
                 const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
@@ -2678,7 +2984,7 @@ window.uploadOrdineGiorno = async function() {
     if (progressWrap) progressWrap.classList.remove('hidden');
     try {
         const fileId = generateId();
-        const ref = storage.ref(`ordinegiorno/${fileId}/${file.name}`);
+        const ref = storage.ref(storagePath(`ordinegiorno/${fileId}/${file.name}`));
         const task = ref.put(file);
         task.on('state_changed', snap => {
             const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
@@ -3451,7 +3757,7 @@ window.uploadMultipleFiles = async function() {
             if (['ppt', 'pptx', 'odp'].includes(ext)) type = 'powerpoint';
             if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) type = 'archive';
 
-            const path = `logistic_files/${Date.now()}_${i}_${file.name}`;
+            const path = storagePath(`logistic_files/${Date.now()}_${i}_${file.name}`);
             const fileRef = storage.ref(path);
             const uploadTask = fileRef.put(file);
             
@@ -3834,6 +4140,7 @@ window.toggleChatPermission = function(email, enabled) {
 
 function initChat() {
     if (chatInitialized) return;
+    if (!currentProjectId) return; // nessun progetto ancora selezionato (login in corso)
     chatInitialized = true;
     const messagesEl = document.getElementById('chat-messages');
     if (!messagesEl) return;
@@ -3841,7 +4148,7 @@ function initChat() {
     renderChatInputBar();
     renderChatPermissionsPanel();
 
-    const chatRef = db.ref('chatMessages');
+    const chatRef = db.ref(dbPath('chatMessages'));
     chatListener = chatRef.limitToLast(200).on('value', (snap) => {
         const data = snap.val();
         const messages = data ? Object.entries(data).map(([k, v]) => ({ _key: k, ...v })) : [];
@@ -4014,7 +4321,7 @@ window.sendChatMessage = function() {
     const author = localStorage.getItem('logistic_torre_username') || currentUsername || 'Anonimo';
     const email  = localStorage.getItem('logistic_torre_email') || '';
     const role   = localStorage.getItem('logistic_torre_role') || currentRole || 'animatore';
-    db.ref('chatMessages').push({ text, author, email, role, timestamp: Date.now() });
+    db.ref(dbPath('chatMessages')).push({ text, author, email, role, timestamp: Date.now() });
     sendPushNotification(`💬 ${author}`, text, email, 'chat');
     input.value = '';
     input.focus();
@@ -4026,7 +4333,7 @@ window.deleteChatMessage = function(key, msgEmail) {
         showToast('Puoi eliminare solo i tuoi messaggi.', 'error'); return;
     }
     if (!confirm('Eliminare questo messaggio?')) return;
-    db.ref('chatMessages/' + key).remove();
+    db.ref(dbPath('chatMessages/' + key)).remove();
 }
 
 window.editChatMessage = function(key, currentText) {
@@ -4053,7 +4360,7 @@ window.saveChatEdit = function(key) {
     if (!ta) return;
     const newText = ta.value.trim();
     if (!newText) { showToast('Il messaggio non può essere vuoto.', 'error'); return; }
-    db.ref('chatMessages/' + key).update({ text: newText, edited: true });
+    db.ref(dbPath('chatMessages/' + key)).update({ text: newText, edited: true });
     showToast('Messaggio modificato.', 'success');
 }
 
