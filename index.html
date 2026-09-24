@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-    <link rel="stylesheet" href="style.css?v=22">
+    <link rel="stylesheet" href="style.css?v=23">
     
     <!-- PWA Config -->
     <link rel="manifest" href="manifest.json">
@@ -337,6 +337,21 @@
                 <button type="button" class="login-back-btn" onclick="showLoginStep('login-step-pwm-identity')">← Torna indietro</button>
             </div>
 
+            <!-- Step Project Manager: password PERSONALE (una volta creata) -->
+            <div id="login-step-pwm-personal" class="hidden">
+                <p id="login-pwm-personal-welcome" style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Project Manager</p>
+                <div class="login-input-group" style="margin-bottom:4px;">
+                    <span class="material-symbols-outlined input-icon">password</span>
+                    <input type="password" id="login-pwm-personal-pwd" placeholder="La tua password personale" autocomplete="current-password">
+                </div>
+                <p id="login-pwm-personal-error" class="login-error hidden" style="margin-bottom:4px;">Password errata.</p>
+                <button type="button" class="login-btn" id="login-pwm-personal-btn" onclick="loginPasswordManagerPersonal()" style="margin-top:8px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;">password</span>
+                    Accedi
+                </button>
+                <button type="button" class="login-back-btn" onclick="showLoginStep('login-step-pwm-identity')">← Torna indietro</button>
+            </div>
+
             <!-- Step Project Manager: elenco progetti, statistiche ed entrata -->
             <div id="login-step-pwm-projects" class="hidden">
                 <div class="pm-panel-header">
@@ -350,13 +365,25 @@
 
                 <div style="margin-top:22px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1);">
                     <h3 style="color:rgba(255,255,255,0.7); font-size:0.95rem; margin:0 0 12px; text-align:left;">Impostazioni account</h3>
-                    <div class="pm-settings-box" style="max-width:340px;">
-                        <p style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Cambia la password di accesso Project Manager — condivisa da tutti i Project Manager</p>
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            <input type="password" id="pwm-password-current" class="pm-pwd-input" placeholder="Password attuale" autocomplete="current-password">
-                            <div style="display:flex; gap:6px;">
-                                <input type="password" id="pwm-password-input" class="pm-pwd-input" placeholder="Nuova password (min 8 caratteri)" autocomplete="new-password" style="flex:1;">
-                                <button type="button" class="btn small primary" onclick="savePwmPassword()">Salva</button>
+                    <div class="pm-settings-grid">
+                        <div class="pm-settings-box">
+                            <p id="pwm-personal-label" style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Password personale</p>
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                                <input type="password" id="pwm-personal-current" class="pm-pwd-input" placeholder="Password fissa (fornita dall'Amministratore Unico)" autocomplete="current-password">
+                                <div style="display:flex; gap:6px;">
+                                    <input type="password" id="pwm-personal-new" class="pm-pwd-input" placeholder="Nuova password personale (min 8 caratteri)" autocomplete="new-password" style="flex:1;">
+                                    <button type="button" class="btn small primary" onclick="savePwmPersonalPassword()">Salva</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pm-settings-box">
+                            <p style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Cambia la password fissa di accesso — condivisa da tutti i Project Manager</p>
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                                <input type="password" id="pwm-password-current" class="pm-pwd-input" placeholder="Password attuale" autocomplete="current-password">
+                                <div style="display:flex; gap:6px;">
+                                    <input type="password" id="pwm-password-input" class="pm-pwd-input" placeholder="Nuova password (min 8 caratteri)" autocomplete="new-password" style="flex:1;">
+                                    <button type="button" class="btn small primary" onclick="savePwmPassword()">Salva</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -921,7 +948,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.66"></script>
+    <script src="app.js?v=4.67"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>

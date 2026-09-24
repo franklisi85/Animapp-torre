@@ -813,10 +813,10 @@ th { background-color: #f8fafc; font-weight: 600; color: var(--text-muted); font
 }
 
 /* Login steps */
-#login-step-1, #login-step-2, #login-step-3, #login-step-admin, #login-step-pm, #login-step-pm-projects, #login-step-pwm-identity, #login-step-pwm, #login-step-pwm-projects {
+#login-step-1, #login-step-2, #login-step-3, #login-step-admin, #login-step-pm, #login-step-pm-projects, #login-step-pwm-identity, #login-step-pwm, #login-step-pwm-personal, #login-step-pwm-projects {
     display: flex; flex-direction: column; gap: 0; width: 100%;
 }
-#login-step-1.hidden, #login-step-2.hidden, #login-step-3.hidden, #login-step-admin.hidden, #login-step-pm.hidden, #login-step-pm-projects.hidden, #login-step-pwm-identity.hidden, #login-step-pwm.hidden, #login-step-pwm-projects.hidden { display: none !important; }
+#login-step-1.hidden, #login-step-2.hidden, #login-step-3.hidden, #login-step-admin.hidden, #login-step-pm.hidden, #login-step-pm-projects.hidden, #login-step-pwm-identity.hidden, #login-step-pwm.hidden, #login-step-pwm-personal.hidden, #login-step-pwm-projects.hidden { display: none !important; }
 
 .login-staff-list { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; margin-bottom: 16px; }
 .login-staff-opt {

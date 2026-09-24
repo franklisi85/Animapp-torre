@@ -213,10 +213,10 @@ let pendingPwmUser = null;
 let currentPwmUser = null;
 const storedPwmName = localStorage.getItem('logistic_torre_pwm_name');
 const storedPwmEmail = localStorage.getItem('logistic_torre_pwm_email');
-if (storedPwmName && storedPwmEmail) currentPwmUser = { name: storedPwmName, email: storedPwmEmail };
+if (storedPwmName && storedPwmEmail) currentPwmUser = { name: storedPwmName, email: storedPwmEmail, hasPersonalPassword: localStorage.getItem('logistic_torre_pwm_haspersonal') === 'true' };
 
 function showLoginStep(stepId) {
-    ['login-step-1','login-step-2','login-step-3','login-step-admin','login-step-pm','login-step-pm-projects','login-step-pwm-identity','login-step-pwm','login-step-pwm-projects'].forEach(id => {
+    ['login-step-1','login-step-2','login-step-3','login-step-admin','login-step-pm','login-step-pm-projects','login-step-pwm-identity','login-step-pwm','login-step-pwm-personal','login-step-pwm-projects'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
@@ -605,16 +605,74 @@ window.pwmCheckIdentity = async function() {
         errEl.classList.add('hidden');
 
         pendingPwmUser = found || { isNew: true, firstName, lastName, email };
-        const welcome = document.getElementById('login-pwm-welcome');
-        if (welcome) welcome.textContent = found ? `Bentornato, ${found.firstName}! Inserisci la password Project Manager.` : `Benvenuto, ${firstName}! Inserisci la password Project Manager (fornita dall'Amministratore Unico).`;
-        showLoginStep('login-step-pwm');
-        setTimeout(() => document.getElementById('login-pwm-pwd')?.focus(), 50);
+
+        // Chi ha già una password personale la usa direttamente; chi è nuovo o non l'ha ancora
+        // creata deve passare dalla password fissa (di invito) fornita dall'Amministratore Unico.
+        if (found && found.hasPersonalPassword) {
+            const welcome = document.getElementById('login-pwm-personal-welcome');
+            if (welcome) welcome.textContent = `Bentornato, ${found.firstName}! Inserisci la tua password personale.`;
+            showLoginStep('login-step-pwm-personal');
+            setTimeout(() => document.getElementById('login-pwm-personal-pwd')?.focus(), 50);
+        } else {
+            const welcome = document.getElementById('login-pwm-welcome');
+            if (welcome) welcome.textContent = found ? `Bentornato, ${found.firstName}! Inserisci la password Project Manager.` : `Benvenuto, ${firstName}! Inserisci la password Project Manager (fornita dall'Amministratore Unico).`;
+            showLoginStep('login-step-pwm');
+            setTimeout(() => document.getElementById('login-pwm-pwd')?.focus(), 50);
+        }
     } catch(e) {
         errEl.textContent = 'Errore: ' + e.message;
         errEl.classList.remove('hidden');
     } finally {
         if (btn) btn.disabled = false;
     }
+};
+
+// Passo 2 (alternativo): login con la password PERSONALE, una volta che il Project Manager
+// se ne è creata una — non serve più conoscere la password fissa condivisa.
+window.loginPasswordManagerPersonal = async function() {
+    const pwd = document.getElementById('login-pwm-personal-pwd')?.value || '';
+    const errEl = document.getElementById('login-pwm-personal-error');
+    if (!pwd) return;
+    if (!pendingPwmUser) {
+        errEl.textContent = 'Sessione scaduta: torna indietro e reinserisci la tua email.';
+        errEl.classList.remove('hidden'); return;
+    }
+    let result;
+    try {
+        result = await callPwmAuth({ action: 'personal_login', email: pendingPwmUser.email, password: pwd });
+    } catch(e) {
+        errEl.textContent = 'Errore di connessione. Riprova.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+    if (!result.ok) {
+        errEl.textContent = 'Password errata.';
+        errEl.classList.remove('hidden');
+        document.getElementById('login-pwm-personal-pwd').value = '';
+        document.getElementById('login-pwm-personal-pwd').focus();
+        loginCard.classList.add('shake');
+        setTimeout(() => loginCard.classList.remove('shake'), 500);
+        return;
+    }
+    errEl.classList.add('hidden');
+
+    // Ricontrolla il blocco appena prima di attivare la sessione (stessa cautela del passo con
+    // la password fissa: evita che un blocco appena arrivato venga ignorato).
+    const blockedSnap = await db.ref('pmBlockedEmails/' + emailKey(pendingPwmUser.email)).once('value');
+    if (blockedSnap.exists()) {
+        errEl.textContent = "Il tuo accesso come Project Manager è stato bloccato dall'Amministratore Unico.";
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    currentPwmUser = { name: `${pendingPwmUser.firstName} ${pendingPwmUser.lastName}`, email: pendingPwmUser.email, hasPersonalPassword: true };
+    localStorage.setItem('logistic_torre_pwm_name', currentPwmUser.name);
+    localStorage.setItem('logistic_torre_pwm_email', currentPwmUser.email);
+    localStorage.setItem('logistic_torre_pwm_haspersonal', 'true');
+    isPasswordManager = true;
+    localStorage.setItem('logistic_torre_pwm', 'true');
+    showLoginStep('login-step-pwm-projects');
+    renderPasswordManagerPanel();
 };
 
 // Passo 2: password di accesso (condivisa da tutti i Project Manager, verificata lato server).
@@ -656,16 +714,17 @@ window.loginPasswordManager = async function() {
 
     const now = new Date().toISOString();
     if (pendingPwmUser.isNew) {
-        const newUser = { firstName: pendingPwmUser.firstName, lastName: pendingPwmUser.lastName, email: pendingPwmUser.email, registeredAt: now, lastLogin: now };
+        const newUser = { firstName: pendingPwmUser.firstName, lastName: pendingPwmUser.lastName, email: pendingPwmUser.email, registeredAt: now, lastLogin: now, hasPersonalPassword: false };
         const ref = db.ref('pmUsers').push();
         await ref.set(newUser);
-        currentPwmUser = { name: `${newUser.firstName} ${newUser.lastName}`, email: newUser.email };
+        currentPwmUser = { name: `${newUser.firstName} ${newUser.lastName}`, email: newUser.email, hasPersonalPassword: false };
     } else {
         await db.ref(`pmUsers/${pendingPwmUser._fbKey}/lastLogin`).set(now);
-        currentPwmUser = { name: `${pendingPwmUser.firstName} ${pendingPwmUser.lastName}`, email: pendingPwmUser.email };
+        currentPwmUser = { name: `${pendingPwmUser.firstName} ${pendingPwmUser.lastName}`, email: pendingPwmUser.email, hasPersonalPassword: !!pendingPwmUser.hasPersonalPassword };
     }
     localStorage.setItem('logistic_torre_pwm_name', currentPwmUser.name);
     localStorage.setItem('logistic_torre_pwm_email', currentPwmUser.email);
+    localStorage.setItem('logistic_torre_pwm_haspersonal', currentPwmUser.hasPersonalPassword ? 'true' : 'false');
 
     isPasswordManager = true;
     localStorage.setItem('logistic_torre_pwm', 'true');
@@ -690,6 +749,29 @@ window.savePwmPassword = async function() {
     document.getElementById('pwm-password-input').value = '';
 };
 
+// Crea o cambia la password PERSONALE del Project Manager (legata alla sua email). La prima
+// volta va dimostrato di conoscere la password fissa (di invito); le volte successive va
+// dimostrata la password personale attuale.
+window.savePwmPersonalPassword = async function() {
+    if (!currentPwmUser) return;
+    const currentPassword = (document.getElementById('pwm-personal-current')?.value || '').trim();
+    const newPassword = (document.getElementById('pwm-personal-new')?.value || '').trim();
+    if (!currentPassword) { showToast('Inserisci la password attuale (fissa o personale).', 'error'); return; }
+    if (!newPassword) { showToast('Inserisci la nuova password personale.', 'error'); return; }
+    if (newPassword.length < 8) { showToast('La nuova password deve avere almeno 8 caratteri.', 'error'); return; }
+    const result = await callPwmAuth({ action: 'set_personal', email: currentPwmUser.email, currentPassword, newPassword });
+    if (!result.ok) {
+        showToast(result.error === 'wrong_current' ? 'Password attuale errata.' : 'Errore durante il salvataggio.', 'error');
+        return;
+    }
+    currentPwmUser.hasPersonalPassword = true;
+    localStorage.setItem('logistic_torre_pwm_haspersonal', 'true');
+    showToast('Password personale impostata.', 'success');
+    document.getElementById('pwm-personal-current').value = '';
+    document.getElementById('pwm-personal-new').value = '';
+    renderPasswordManagerPanel();
+};
+
 // Pannello del Project Manager: stessa visione completa dei progetti dell'Amministratore
 // Unico (statistiche + possibilità di entrare), ma senza i pulsanti di rinomina/duplica/
 // elimina e senza accesso a sicurezza/Telegram del progetto (una volta dentro, quella
@@ -700,6 +782,12 @@ function renderPasswordManagerPanel() {
     if (!list) return;
     const subtitleEl = document.getElementById('pwm-panel-subtitle');
     if (subtitleEl && currentPwmUser) subtitleEl.textContent = `Ciao ${currentPwmUser.name} — puoi entrare in ogni progetto e vedere le sue informazioni. Sicurezza e Telegram restano riservate all'Amministratore Unico.`;
+    const personalLabel = document.getElementById('pwm-personal-label');
+    if (personalLabel) personalLabel.textContent = currentPwmUser && currentPwmUser.hasPersonalPassword
+        ? 'La tua password personale è impostata — cambiala qui.'
+        : "Non hai ancora una password personale: impostala per non dover più chiedere la password fissa all'Amministratore Unico.";
+    const personalCurrentInput = document.getElementById('pwm-personal-current');
+    if (personalCurrentInput) personalCurrentInput.placeholder = currentPwmUser && currentPwmUser.hasPersonalPassword ? 'Password personale attuale' : "Password fissa (fornita dall'Amministratore Unico)";
     const ids = Object.keys(projectsListCache);
     list.innerHTML = ids.length === 0
         ? '<p style="color:rgba(255,255,255,0.5); font-size:0.85rem; margin-bottom:10px;">Nessun progetto ancora creato.</p>'
@@ -886,12 +974,16 @@ async function renderPmUsersList() {
         container.innerHTML = entries.map(u => {
             const blocked = blockedEmails.has(u.email);
             const lastLogin = u.lastLogin ? new Date(u.lastLogin).toLocaleString('it-IT') : '—';
+            const personalBadge = u.hasPersonalPassword
+                ? '<span style="color:#4ade80; font-size:0.72rem; margin-left:6px;">Password personale impostata</span>'
+                : '<span style="color:rgba(255,255,255,0.4); font-size:0.72rem; margin-left:6px;">Password personale non impostata</span>';
             return `<div class="project-picker-card">
                 <div style="min-width:0;">
                     <div class="name">${escHtml(u.firstName)} ${escHtml(u.lastName)} ${blocked ? '<span style="color:#f87171; font-size:0.72rem; font-weight:700; margin-left:6px;">BLOCCATO</span>' : ''}</div>
-                    <div style="font-size:0.76rem; color:rgba(255,255,255,0.5); margin-top:2px;">${escHtml(u.email)} · Ultimo accesso: ${lastLogin}</div>
+                    <div style="font-size:0.76rem; color:rgba(255,255,255,0.5); margin-top:2px;">${escHtml(u.email)} · Ultimo accesso: ${lastLogin}${personalBadge}</div>
                 </div>
-                <div style="display:flex; gap:6px; flex-shrink:0;">
+                <div style="display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
+                    ${u.hasPersonalPassword ? `<button type="button" class="btn small" onclick="adminResetPmPersonalPassword('${escHtml(u.email)}')" title="Azzera la password personale: dovrà rientrare con quella fissa e crearsene una nuova">Reset password personale</button>` : ''}
                     ${blocked
                         ? `<button type="button" class="btn small" onclick="unblockPmUser('${escHtml(u.email)}')">Sblocca</button>`
                         : `<button type="button" class="btn small" style="background:rgba(248,113,113,0.15); color:#f87171;" onclick="blockPmUser('${escHtml(u.email)}')">Blocca</button>`}
@@ -926,6 +1018,22 @@ window.deletePmUser = async function(fbKey, email) {
     if (!confirm(`Rimuovere definitivamente ${email} dalla lista dei Project Manager?\nQuesto NON blocca l'email: potrà registrarsi di nuovo se conosce la password di accesso.`)) return;
     await db.ref('pmUsers/' + fbKey).remove();
     showToast(`${email} rimosso.`, 'success');
+    renderPmUsersList();
+};
+
+// L'Amministratore Unico azzera la password PERSONALE di un singolo Project Manager (senza
+// conoscerla): dimostra chi è confermando la PROPRIA password, verificata lato server.
+window.adminResetPmPersonalPassword = async function(email) {
+    if (!isSuperAdmin) return;
+    if (!confirm(`Azzerare la password personale di ${email}?\nDovrà rientrare con la password fissa e impostarsene una nuova.`)) return;
+    const superAdminPassword = prompt('Conferma la TUA password (Amministratore Unico):');
+    if (!superAdminPassword) return;
+    const result = await callPwmAuth({ action: 'admin_reset_personal', superAdminPassword, targetEmail: email });
+    if (!result.ok) {
+        showToast(result.error === 'wrong_superadmin_password' ? 'La tua password non è corretta.' : (result.error === 'not_found' ? 'Project Manager non trovato.' : 'Errore durante il reset.'), 'error');
+        return;
+    }
+    showToast(`Password personale di ${email} azzerata.`, 'success');
     renderPmUsersList();
 };
 
@@ -1071,6 +1179,7 @@ window.pwmLogoutToStep1 = function() {
     localStorage.removeItem('logistic_torre_pwm');
     localStorage.removeItem('logistic_torre_pwm_name');
     localStorage.removeItem('logistic_torre_pwm_email');
+    localStorage.removeItem('logistic_torre_pwm_haspersonal');
     showLoginStep('login-step-1');
 };
 
@@ -1656,6 +1765,7 @@ if (btnGlobalLogout) {
             localStorage.removeItem('logistic_torre_pwm');
             localStorage.removeItem('logistic_torre_pwm_name');
             localStorage.removeItem('logistic_torre_pwm_email');
+            localStorage.removeItem('logistic_torre_pwm_haspersonal');
             window.location.reload();
         }
     });
