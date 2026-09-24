@@ -3520,9 +3520,19 @@ function renderDashboard() {
 }
 
 let _dashDragInit = false;
+// Solo Amministratore Unico, Project Manager (su tutti i progetti) e Capo Team (sul proprio
+// progetto, l'unico in cui può mai trovarsi) possono riordinare la struttura: sezioni dashboard
+// e cartelle. Lo staff semplice (animatore/operatore/responsabile) le vede in ordine fisso.
+function canReorderStructure() {
+    return isSuperAdmin || isPasswordManager || currentRole === 'admin';
+}
 function initDashboardDrag() {
     const wrapper = document.getElementById('dashboard-sections-wrapper');
     if (!wrapper) return;
+
+    const allowed = canReorderStructure();
+    wrapper.querySelectorAll(':scope > .dashboard-section').forEach(s => s.setAttribute('draggable', allowed ? 'true' : 'false'));
+    if (!allowed) return;
 
     // Restore saved order from localStorage
     if (!_dashDragInit) {
