@@ -4196,6 +4196,7 @@ function getFileIcon(type) {
     if (type === 'word') return 'description';
     if (type === 'powerpoint') return 'slideshow';
     if (type === 'archive') return 'folder_zip';
+    if (type === 'nativedoc') return 'edit_document';
     return 'draft';
 }
 
@@ -4422,7 +4423,11 @@ function renderFiles() {
         const downBtn   = isAdmin ? `<button class="btn-icon admin-only" onclick="moveFileItem(event,'${item.id}',1)" title="Sposta giù" style="padding:4px;" ${index === fileItems.length - 1 ? 'disabled style="padding:4px;opacity:0.3;"' : ''}><span class="material-symbols-outlined" style="font-size:18px;">arrow_downward</span></button>` : '';
 
         let actionBtn = '';
-        if (item.isGDrive) {
+        if (item.isDocument) {
+            actionBtn = (currentRole === 'admin' || currentRole === 'responsabile')
+                ? `<button class="btn-icon" title="Apri e modifica" onclick="event.stopPropagation(); openDocumentEditor('${item.id}')"><span class="material-symbols-outlined">edit_document</span></button>`
+                : `<button class="btn-icon" title="Apri (sola lettura)" onclick="event.stopPropagation(); openDocumentEditor('${item.id}')"><span class="material-symbols-outlined">visibility</span></button>`;
+        } else if (item.isGDrive) {
             actionBtn = `<a href="${item.url}" target="_blank" class="btn-icon" title="Apri su Google Drive" onclick="event.stopPropagation()" style="color:#4285f4;"><span class="material-symbols-outlined">open_in_new</span></a>`;
         } else if (item.isDropbox) {
             actionBtn = `<a href="${item.url}" target="_blank" class="btn-icon" title="Apri su Dropbox" onclick="event.stopPropagation()" style="color:#0061fe;"><span class="material-symbols-outlined">open_in_new</span></a>`;
@@ -4432,8 +4437,10 @@ function renderFiles() {
             actionBtn = `<a href="${item.url}" target="_blank" class="btn-icon" title="Apri (Sola Lettura)" onclick="event.stopPropagation()"><span class="material-symbols-outlined">visibility</span></a>`;
         }
 
-        const iconColor = item.isGDrive ? 'color:#4285f4;' : item.isDropbox ? 'color:#0061fe;' : '';
-        const metaLabel = item.isGDrive
+        const iconColor = item.isGDrive ? 'color:#4285f4;' : item.isDropbox ? 'color:#0061fe;' : item.isDocument ? 'color:var(--secondary);' : '';
+        const metaLabel = item.isDocument
+            ? `<span style="color:var(--secondary); font-weight:500;">Documento</span> · Aggiornato il ${item.updatedAtLabel || item.date}${item.updatedBy ? ' da ' + escHtml(item.updatedBy) : ''}`
+            : item.isGDrive
             ? `<span style="color:#4285f4; font-weight:500;">Google Drive</span> · ${item.date}`
             : item.isDropbox
             ? `<span style="color:#0061fe; font-weight:500;">Dropbox</span> · ${item.date}`
@@ -4616,6 +4623,70 @@ window.addFolder = function() {
     modal.classList.add('hidden');
     renderFiles();
 }
+
+// ── Documenti nativi: creati e modificati DENTRO l'app (testo con formattazione di base),
+// niente upload/download per tenerli aggiornati — a differenza dei file caricati (Word/PDF/...),
+// che restano file grezzi scaricabili ma non modificabili dal browser.
+window.promptCreateDocument = function() {
+    if (currentRole !== 'admin') return;
+    const title = prompt('Nome del nuovo documento:');
+    if (!title || !title.trim()) return;
+    if (!appData.files) appData.files = [];
+    const doc = {
+        id: generateId(),
+        title: title.trim(),
+        isFolder: false,
+        isDocument: true,
+        type: 'nativedoc',
+        content: '',
+        parentId: window.currentFolderId,
+        date: new Date().toLocaleDateString('it-IT'),
+        updatedAtLabel: new Date().toLocaleDateString('it-IT'),
+        updatedBy: currentUsername || ''
+    };
+    appData.files.push(doc);
+    saveData();
+    renderFiles();
+    openDocumentEditor(doc.id);
+};
+
+window.openDocumentEditor = function(id) {
+    const item = (appData.files || []).find(f => String(f.id) === String(id));
+    if (!item) return;
+    const canEdit = currentRole === 'admin' || currentRole === 'responsabile';
+    const toolbar = canEdit ? `
+        <div class="doc-editor-toolbar">
+            <button type="button" onmousedown="event.preventDefault(); document.execCommand('bold')" title="Grassetto"><span class="material-symbols-outlined">format_bold</span></button>
+            <button type="button" onmousedown="event.preventDefault(); document.execCommand('italic')" title="Corsivo"><span class="material-symbols-outlined">format_italic</span></button>
+            <button type="button" onmousedown="event.preventDefault(); document.execCommand('underline')" title="Sottolineato"><span class="material-symbols-outlined">format_underlined</span></button>
+            <button type="button" onmousedown="event.preventDefault(); document.execCommand('formatBlock', false, 'h3')" title="Titolo"><span class="material-symbols-outlined">title</span></button>
+            <button type="button" onmousedown="event.preventDefault(); document.execCommand('formatBlock', false, 'p')" title="Testo normale"><span class="material-symbols-outlined">notes</span></button>
+            <button type="button" onmousedown="event.preventDefault(); document.execCommand('insertUnorderedList')" title="Elenco puntato"><span class="material-symbols-outlined">format_list_bulleted</span></button>
+            <button type="button" onmousedown="event.preventDefault(); document.execCommand('insertOrderedList')" title="Elenco numerato"><span class="material-symbols-outlined">format_list_numbered</span></button>
+        </div>` : '';
+    const meta = item.updatedBy ? `<p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:8px;">Ultimo aggiornamento: ${escHtml(item.updatedAtLabel || item.date || '')} da ${escHtml(item.updatedBy)}</p>` : '';
+    openModal(item.title, `
+        ${meta}
+        ${toolbar}
+        <div id="doc-editor-body" class="doc-editor-body" ${canEdit ? 'contenteditable="true"' : ''}>${item.content || ''}</div>
+        ${canEdit ? `<button class="btn primary" onclick="saveDocumentContent('${id}')" style="width:100%; justify-content:center; margin-top:12px;">Salva</button>` : ''}
+    `);
+};
+
+window.saveDocumentContent = function(id) {
+    if (currentRole !== 'admin' && currentRole !== 'responsabile') return;
+    const item = (appData.files || []).find(f => String(f.id) === String(id));
+    if (!item) return;
+    const body = document.getElementById('doc-editor-body');
+    if (!body) return;
+    item.content = body.innerHTML;
+    item.updatedAtLabel = new Date().toLocaleDateString('it-IT');
+    item.updatedBy = currentUsername || '';
+    saveData();
+    modal.classList.add('hidden');
+    renderFiles();
+    showToast('Documento salvato.', 'success');
+};
 
 window.openUploadModal = function() {
     openModal("Carica nel Cloud", `
