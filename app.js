@@ -300,6 +300,7 @@ window.loginCheckIdentity = async function() {
 
         const firstName = (document.getElementById('login-firstname')?.value || '').trim();
         const lastName  = (document.getElementById('login-lastname')?.value || '').trim();
+        const phone     = (document.getElementById('login-phone')?.value || '').trim();
         const projectSelect = document.getElementById('login-project-select');
         const selectedProjectId = projectSelect ? projectSelect.value : '';
 
@@ -345,7 +346,7 @@ window.loginCheckIdentity = async function() {
             pendingLoginUser = found;
             if (welcome) welcome.textContent = `Bentornato, ${found.firstName}!`;
         } else {
-            pendingLoginUser = { isNew: true, firstName, lastName, email };
+            pendingLoginUser = { isNew: true, firstName, lastName, email, phone };
             if (welcome) welcome.textContent = `Benvenuto, ${firstName}!`;
         }
         showLoginStep('login-step-2');
@@ -399,6 +400,7 @@ window.loginWithPassword = async function() {
                 firstName: pendingLoginUser.firstName,
                 lastName: pendingLoginUser.lastName,
                 email: pendingLoginUser.email,
+                phone: pendingLoginUser.phone || '',
                 role: 'animatore',
                 registeredAt: new Date().toISOString(),
                 lastLogin: new Date().toISOString(),
