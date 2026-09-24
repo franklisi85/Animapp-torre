@@ -207,9 +207,16 @@ if (localStorage.getItem('logistic_torre_auth') === 'true') {
 
 // Pending login data (set after identity check, before password)
 let pendingLoginUser = null;
+// Identità del Project Manager: pendingPwmUser durante il login (email verificata, password
+// ancora da inserire), currentPwmUser dopo l'accesso (persiste anche dopo un reload).
+let pendingPwmUser = null;
+let currentPwmUser = null;
+const storedPwmName = localStorage.getItem('logistic_torre_pwm_name');
+const storedPwmEmail = localStorage.getItem('logistic_torre_pwm_email');
+if (storedPwmName && storedPwmEmail) currentPwmUser = { name: storedPwmName, email: storedPwmEmail };
 
 function showLoginStep(stepId) {
-    ['login-step-1','login-step-2','login-step-3','login-step-admin','login-step-pm','login-step-pm-projects','login-step-pwm','login-step-pwm-projects'].forEach(id => {
+    ['login-step-1','login-step-2','login-step-3','login-step-admin','login-step-pm','login-step-pm-projects','login-step-pwm-identity','login-step-pwm','login-step-pwm-projects'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
@@ -538,10 +545,12 @@ window.resetPwmPassword = async function() {
 };
 
 // ==========================================
-// PROJECT MANAGER (ruolo limitato: solo password Staff/Capo Team dei progetti)
-// Login/cambio password verificati lato server esattamente come l'Amministratore Unico,
-// ma su un percorso Firebase separato (pwmConfig/password) e senza nessun altro potere:
-// non può entrare nei progetti, rinominarli, eliminarli, duplicarli né vedere statistiche.
+// PROJECT MANAGER (ruolo limitato: solo password Staff/Capo Team dei progetti, oltre a
+// vedere/entrare in tutti i progetti). Possono essercene più di uno, ognuno con la propria
+// identità (nome + email, in pmUsers/) — esattamente come lo staff di un progetto — ma
+// condividono TUTTI la stessa password di accesso (pwmConfig/password, verificata lato
+// server come per l'Amministratore Unico). L'Amministratore Unico può bloccare/rimuovere
+// una singola identità senza toccare la password condivisa (pmBlockedEmails/).
 // ==========================================
 async function callPwmAuth(payload) {
     const res = await fetch('/.netlify/functions/pwm-auth', {
@@ -553,14 +562,70 @@ async function callPwmAuth(payload) {
 }
 
 window.showPWMStep = function() {
-    showLoginStep('login-step-pwm');
-    setTimeout(() => document.getElementById('login-pwm-pwd')?.focus(), 50);
+    pendingPwmUser = null;
+    showLoginStep('login-step-pwm-identity');
+    setTimeout(() => document.getElementById('login-pwm-email')?.focus(), 50);
 };
 
+// Passo 1: identità (email + nome/cognome se nuovo) — verifica anche il blocco PRIMA
+// di far vedere il campo password, così un Project Manager bloccato non arriva nemmeno lì.
+window.pwmCheckIdentity = async function() {
+    const errEl = document.getElementById('login-pwm-identity-error');
+    const btn = document.getElementById('login-pwm-identity-btn');
+    const email = (document.getElementById('login-pwm-email')?.value || '').trim().toLowerCase();
+    const firstName = (document.getElementById('login-pwm-firstname')?.value || '').trim();
+    const lastName = (document.getElementById('login-pwm-lastname')?.value || '').trim();
+
+    if (!email || !email.includes('@')) {
+        errEl.textContent = 'Inserisci una email valida.';
+        errEl.classList.remove('hidden'); return;
+    }
+
+    try {
+        if (btn) btn.disabled = true;
+        const blockedSnap = await db.ref('pmBlockedEmails/' + emailKey(email)).once('value');
+        if (blockedSnap.exists()) {
+            errEl.textContent = "Il tuo accesso come Project Manager è stato bloccato dall'Amministratore Unico.";
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        const snap = await db.ref('pmUsers').orderByChild('email').equalTo(email).once('value');
+        let found = null;
+        if (snap.exists()) {
+            const val = snap.val();
+            const fbKey = Object.keys(val)[0];
+            found = { ...Object.values(val)[0], _fbKey: fbKey };
+        }
+
+        if (!found && (!firstName || !lastName)) {
+            errEl.textContent = 'Compila nome e cognome.';
+            errEl.classList.remove('hidden'); return;
+        }
+        errEl.classList.add('hidden');
+
+        pendingPwmUser = found || { isNew: true, firstName, lastName, email };
+        const welcome = document.getElementById('login-pwm-welcome');
+        if (welcome) welcome.textContent = found ? `Bentornato, ${found.firstName}! Inserisci la password Project Manager.` : `Benvenuto, ${firstName}! Inserisci la password Project Manager (fornita dall'Amministratore Unico).`;
+        showLoginStep('login-step-pwm');
+        setTimeout(() => document.getElementById('login-pwm-pwd')?.focus(), 50);
+    } catch(e) {
+        errEl.textContent = 'Errore: ' + e.message;
+        errEl.classList.remove('hidden');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
+// Passo 2: password di accesso (condivisa da tutti i Project Manager, verificata lato server).
 window.loginPasswordManager = async function() {
     const pwd = document.getElementById('login-pwm-pwd')?.value || '';
     const errEl = document.getElementById('login-pwm-error');
     if (!pwd) return;
+    if (!pendingPwmUser) {
+        errEl.textContent = 'Sessione scaduta: torna indietro e reinserisci la tua email.';
+        errEl.classList.remove('hidden'); return;
+    }
     let result;
     try {
         result = await callPwmAuth({ action: 'login', password: pwd });
@@ -579,6 +644,29 @@ window.loginPasswordManager = async function() {
         return;
     }
     errEl.classList.add('hidden');
+
+    // Ricontrolla il blocco appena prima di attivare la sessione, per evitare che un Project
+    // Manager bloccato PROPRIO ora riesca comunque a entrare tra il passo 1 e il passo 2.
+    const blockedSnap = await db.ref('pmBlockedEmails/' + emailKey(pendingPwmUser.email)).once('value');
+    if (blockedSnap.exists()) {
+        errEl.textContent = "Il tuo accesso come Project Manager è stato bloccato dall'Amministratore Unico.";
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    const now = new Date().toISOString();
+    if (pendingPwmUser.isNew) {
+        const newUser = { firstName: pendingPwmUser.firstName, lastName: pendingPwmUser.lastName, email: pendingPwmUser.email, registeredAt: now, lastLogin: now };
+        const ref = db.ref('pmUsers').push();
+        await ref.set(newUser);
+        currentPwmUser = { name: `${newUser.firstName} ${newUser.lastName}`, email: newUser.email };
+    } else {
+        await db.ref(`pmUsers/${pendingPwmUser._fbKey}/lastLogin`).set(now);
+        currentPwmUser = { name: `${pendingPwmUser.firstName} ${pendingPwmUser.lastName}`, email: pendingPwmUser.email };
+    }
+    localStorage.setItem('logistic_torre_pwm_name', currentPwmUser.name);
+    localStorage.setItem('logistic_torre_pwm_email', currentPwmUser.email);
+
     isPasswordManager = true;
     localStorage.setItem('logistic_torre_pwm', 'true');
     showLoginStep('login-step-pwm-projects');
@@ -610,6 +698,8 @@ window.savePwmPassword = async function() {
 function renderPasswordManagerPanel() {
     const list = document.getElementById('pwm-projects-list');
     if (!list) return;
+    const subtitleEl = document.getElementById('pwm-panel-subtitle');
+    if (subtitleEl && currentPwmUser) subtitleEl.textContent = `Ciao ${currentPwmUser.name} — puoi entrare in ogni progetto e vedere le sue informazioni. Sicurezza e Telegram restano riservate all'Amministratore Unico.`;
     const ids = Object.keys(projectsListCache);
     list.innerHTML = ids.length === 0
         ? '<p style="color:rgba(255,255,255,0.5); font-size:0.85rem; margin-bottom:10px;">Nessun progetto ancora creato.</p>'
@@ -768,7 +858,76 @@ function renderProjectsPanel() {
             ? `<button type="button" class="login-back-btn" style="margin-top:10px;" onclick="migrateLegacyProject()">Migra dati esistenti come "Torre Serena"</button>`
             : '';
     }
+
+    renderPmUsersList();
 }
+
+// Elenco dei Project Manager che si sono registrati (pmUsers/) con lo stato di blocco
+// (pmBlockedEmails/) — visibile SOLO all'Amministratore Unico, che può bloccare/sbloccare o
+// rimuovere una singola identità senza toccare la password condivisa di accesso.
+async function renderPmUsersList() {
+    const container = document.getElementById('pm-pwm-users-list');
+    if (!container || !isSuperAdmin) return;
+    try {
+        const [usersSnap, blockedSnap] = await Promise.all([
+            db.ref('pmUsers').once('value'),
+            db.ref('pmBlockedEmails').once('value')
+        ]);
+        const usersVal = usersSnap.val() || {};
+        const blockedVal = blockedSnap.val() || {};
+        const blockedEmails = new Set(Object.values(blockedVal));
+        const entries = Object.entries(usersVal).map(([fbKey, u]) => ({ ...u, _fbKey: fbKey }));
+        entries.sort((a, b) => (b.lastLogin || '').localeCompare(a.lastLogin || ''));
+
+        if (entries.length === 0) {
+            container.innerHTML = '<p style="color:rgba(255,255,255,0.5); font-size:0.85rem;">Nessun Project Manager si è ancora registrato.</p>';
+            return;
+        }
+        container.innerHTML = entries.map(u => {
+            const blocked = blockedEmails.has(u.email);
+            const lastLogin = u.lastLogin ? new Date(u.lastLogin).toLocaleString('it-IT') : '—';
+            return `<div class="project-picker-card">
+                <div style="min-width:0;">
+                    <div class="name">${escHtml(u.firstName)} ${escHtml(u.lastName)} ${blocked ? '<span style="color:#f87171; font-size:0.72rem; font-weight:700; margin-left:6px;">BLOCCATO</span>' : ''}</div>
+                    <div style="font-size:0.76rem; color:rgba(255,255,255,0.5); margin-top:2px;">${escHtml(u.email)} · Ultimo accesso: ${lastLogin}</div>
+                </div>
+                <div style="display:flex; gap:6px; flex-shrink:0;">
+                    ${blocked
+                        ? `<button type="button" class="btn small" onclick="unblockPmUser('${escHtml(u.email)}')">Sblocca</button>`
+                        : `<button type="button" class="btn small" style="background:rgba(248,113,113,0.15); color:#f87171;" onclick="blockPmUser('${escHtml(u.email)}')">Blocca</button>`}
+                    <button type="button" class="btn-icon" style="color:#f87171;" title="Rimuovi definitivamente (non blocca l'email)" onclick="deletePmUser('${escHtml(u._fbKey)}', '${escHtml(u.email)}')">
+                        <span class="material-symbols-outlined" style="font-size:16px;">delete_forever</span>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        container.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Errore nel caricamento: ${escHtml(e.message)}</p>`;
+    }
+}
+
+window.blockPmUser = async function(email) {
+    if (!isSuperAdmin) return;
+    if (!confirm(`Bloccare l'accesso di ${email} come Project Manager?\nNon potrà più entrare finché non lo sblocchi (a meno che non usi un'altra email).`)) return;
+    await db.ref('pmBlockedEmails/' + emailKey(email)).set(email);
+    showToast(`${email} bloccato.`, 'success');
+    renderPmUsersList();
+};
+
+window.unblockPmUser = async function(email) {
+    if (!isSuperAdmin) return;
+    await db.ref('pmBlockedEmails/' + emailKey(email)).remove();
+    showToast(`${email} sbloccato.`, 'success');
+    renderPmUsersList();
+};
+
+window.deletePmUser = async function(fbKey, email) {
+    if (!isSuperAdmin) return;
+    if (!confirm(`Rimuovere definitivamente ${email} dalla lista dei Project Manager?\nQuesto NON blocca l'email: potrà registrarsi di nuovo se conosce la password di accesso.`)) return;
+    await db.ref('pmUsers/' + fbKey).remove();
+    showToast(`${email} rimosso.`, 'success');
+    renderPmUsersList();
+};
 
 window.promptRenameProject = async function(id) {
     const current = (projectsListCache[id] && projectsListCache[id].name) || id;
@@ -806,7 +965,11 @@ window.savePmProjectPasswords = async function(id, fromPwm) {
 
 window.enterProjectAsManager = async function(pid) {
     await attachProjectListener(pid);
-    finalizeLogin('admin', isPasswordManager ? 'Project Manager' : 'Amministratore Unico', '');
+    if (isPasswordManager && currentPwmUser) {
+        finalizeLogin('admin', currentPwmUser.name, currentPwmUser.email);
+    } else {
+        finalizeLogin('admin', 'Amministratore Unico', '');
+    }
 };
 
 window.promptCreateProject = async function() {
@@ -903,7 +1066,11 @@ window.pmLogoutToStep1 = function() {
 
 window.pwmLogoutToStep1 = function() {
     isPasswordManager = false;
+    currentPwmUser = null;
+    pendingPwmUser = null;
     localStorage.removeItem('logistic_torre_pwm');
+    localStorage.removeItem('logistic_torre_pwm_name');
+    localStorage.removeItem('logistic_torre_pwm_email');
     showLoginStep('login-step-1');
 };
 
@@ -1487,6 +1654,8 @@ if (btnGlobalLogout) {
             localStorage.removeItem('logistic_torre_project');
             localStorage.removeItem('logistic_torre_superadmin');
             localStorage.removeItem('logistic_torre_pwm');
+            localStorage.removeItem('logistic_torre_pwm_name');
+            localStorage.removeItem('logistic_torre_pwm_email');
             window.location.reload();
         }
     });

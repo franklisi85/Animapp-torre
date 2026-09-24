@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-    <link rel="stylesheet" href="style.css?v=21">
+    <link rel="stylesheet" href="style.css?v=22">
     
     <!-- PWA Config -->
     <link rel="manifest" href="manifest.json">
@@ -281,7 +281,7 @@
                             </div>
                         </div>
                         <div class="pm-settings-box">
-                            <p style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Reimposta la password del Project Manager (non serve conoscere quella attuale)</p>
+                            <p style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Reimposta la password di accesso Project Manager — condivisa da tutti i Project Manager, come la password Staff di un progetto (non serve conoscere quella attuale)</p>
                             <div style="display:flex; flex-direction:column; gap:6px;">
                                 <input type="password" id="pm-reset-pwm-superadmin-pwd" class="pm-pwd-input" placeholder="La TUA password (Amministratore Unico)" autocomplete="current-password">
                                 <div style="display:flex; gap:6px;">
@@ -292,11 +292,39 @@
                         </div>
                     </div>
                 </div>
+
+                <div style="margin-top:22px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1);">
+                    <h3 style="color:rgba(255,255,255,0.7); font-size:0.95rem; margin:0 0 12px; text-align:left;">Project Manager registrati</h3>
+                    <div id="pm-pwm-users-list"></div>
+                </div>
             </div>
 
-            <!-- Step Project Manager (solo password): password -->
-            <div id="login-step-pwm" class="hidden">
+            <!-- Step Project Manager: identità (email + nome/cognome se nuovo) -->
+            <div id="login-step-pwm-identity" class="hidden">
                 <p style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Project Manager</p>
+                <div class="login-input-group">
+                    <span class="material-symbols-outlined input-icon">mail</span>
+                    <input type="email" id="login-pwm-email" placeholder="Email" autocomplete="email">
+                </div>
+                <div class="login-input-group">
+                    <span class="material-symbols-outlined input-icon">person</span>
+                    <input type="text" id="login-pwm-firstname" placeholder="Nome" autocomplete="given-name">
+                </div>
+                <div class="login-input-group" style="margin-bottom:4px;">
+                    <span class="material-symbols-outlined input-icon">badge</span>
+                    <input type="text" id="login-pwm-lastname" placeholder="Cognome" autocomplete="family-name">
+                </div>
+                <p id="login-pwm-identity-error" class="login-error hidden" style="margin-bottom:4px;">Compila tutti i campi con una email valida.</p>
+                <button type="button" class="login-btn" id="login-pwm-identity-btn" onclick="pwmCheckIdentity()" style="margin-top:8px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;">arrow_forward</span>
+                    Continua
+                </button>
+                <button type="button" class="login-back-btn" onclick="backToStep1()">← Torna indietro</button>
+            </div>
+
+            <!-- Step Project Manager: password di accesso (condivisa) -->
+            <div id="login-step-pwm" class="hidden">
+                <p id="login-pwm-welcome" style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:12px;text-align:center;">Accesso riservato al Project Manager</p>
                 <div class="login-input-group" style="margin-bottom:4px;">
                     <span class="material-symbols-outlined input-icon">key</span>
                     <input type="password" id="login-pwm-pwd" placeholder="Password Project Manager" autocomplete="current-password">
@@ -306,15 +334,15 @@
                     <span class="material-symbols-outlined" style="font-size:18px;">key</span>
                     Accedi come Project Manager
                 </button>
-                <button type="button" class="login-back-btn" onclick="backToStep1()">← Torna indietro</button>
+                <button type="button" class="login-back-btn" onclick="showLoginStep('login-step-pwm-identity')">← Torna indietro</button>
             </div>
 
-            <!-- Step Project Manager: elenco progetti, solo password -->
+            <!-- Step Project Manager: elenco progetti, statistiche ed entrata -->
             <div id="login-step-pwm-projects" class="hidden">
                 <div class="pm-panel-header">
                     <div>
                         <h2>I tuoi progetti</h2>
-                        <p>Project Manager — puoi entrare in ogni progetto e vedere le sue informazioni. Sicurezza e Telegram restano riservate all'Amministratore Unico.</p>
+                        <p id="pwm-panel-subtitle">Project Manager — puoi entrare in ogni progetto e vedere le sue informazioni. Sicurezza e Telegram restano riservate all'Amministratore Unico.</p>
                     </div>
                     <button type="button" class="login-back-btn" onclick="pwmLogoutToStep1()" style="margin:0;">← Esci</button>
                 </div>
@@ -323,7 +351,7 @@
                 <div style="margin-top:22px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1);">
                     <h3 style="color:rgba(255,255,255,0.7); font-size:0.95rem; margin:0 0 12px; text-align:left;">Impostazioni account</h3>
                     <div class="pm-settings-box" style="max-width:340px;">
-                        <p style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Cambia la tua password (Project Manager)</p>
+                        <p style="color:rgba(255,255,255,0.5); font-size:0.78rem; margin-bottom:8px;">Cambia la password di accesso Project Manager — condivisa da tutti i Project Manager</p>
                         <div style="display:flex; flex-direction:column; gap:6px;">
                             <input type="password" id="pwm-password-current" class="pm-pwd-input" placeholder="Password attuale" autocomplete="current-password">
                             <div style="display:flex; gap:6px;">
@@ -893,7 +921,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.65"></script>
+    <script src="app.js?v=4.66"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>
