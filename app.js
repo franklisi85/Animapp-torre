@@ -1242,15 +1242,32 @@ function finalizeLogin(role, name, email) {
 // ==========================================
 // ONESIGNAL — PUSH NOTIFICATIONS
 // ==========================================
+// OneSignal.init() può essere chiamato UNA SOLA VOLTA per pagina: una seconda chiamata lancia
+// "SDK already initialized" e interrompe tutto il resto della callback (compreso l'aggiornamento
+// del tag "project"). Questo però capita facilmente ora che Amministratore Unico e Project
+// Manager possono entrare in più progetti nella stessa sessione senza ricaricare la pagina —
+// senza questa guardia il tag "project" resterebbe bloccato sul primo progetto aperto.
+let oneSignalInitialized = false;
 function initOneSignal(email, name, role) {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-            appId: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
-            promptOptions: { slidedown: { prompts: [{ type: 'push', autoPrompt: false }] } }
-        });
+        if (!oneSignalInitialized) {
+            await OneSignal.init({
+                appId: '9d5f60a7-b686-4cf5-98b6-e044f755263c',
+                promptOptions: { slidedown: { prompts: [{ type: 'push', autoPrompt: false }] } }
+            });
+            oneSignalInitialized = true;
+            OneSignal.Notifications.addEventListener('click', (event) => {
+                const view = event?.notification?.additionalData?.view;
+                if (view) {
+                    localStorage.setItem('pending_nav_view', view);
+                    setTimeout(() => { navigateTo(view); localStorage.removeItem('pending_nav_view'); }, 500);
+                }
+            });
+        }
         // Tag di progetto sempre presente (anche per Capo Team/Amministratore Unico, che non hanno email)
-        // così le notifiche push possono essere mirate solo allo staff dello stesso progetto.
+        // così le notifiche push possono essere mirate solo allo staff dello stesso progetto. Va rifatto
+        // ad ogni chiamata (non solo alla prima init) per restare corretto quando si cambia progetto.
         if (currentProjectId) OneSignal.User.addTag('project', currentProjectId);
         if (email) {
             await OneSignal.login(email);
@@ -1269,13 +1286,6 @@ function initOneSignal(email, name, role) {
             if (btn) { btn.style.color = '#f59e0b'; btn.title = 'Tocca per attivare le notifiche'; }
             setTimeout(showNotifPrompt, 2000);
         }
-        OneSignal.Notifications.addEventListener('click', (event) => {
-            const view = event?.notification?.additionalData?.view;
-            if (view) {
-                localStorage.setItem('pending_nav_view', view);
-                setTimeout(() => { navigateTo(view); localStorage.removeItem('pending_nav_view'); }, 500);
-            }
-        });
     });
 }
 
