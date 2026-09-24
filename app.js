@@ -2746,6 +2746,7 @@ function renderStaff() {
                 <div style="min-width:0;flex:1;">
                     <div style="font-weight:600;font-size:0.9rem;word-break:break-word;">${escHtml(u.firstName)} ${escHtml(u.lastName)}</div>
                     <div style="font-size:0.78rem;color:var(--text-muted);word-break:break-all;">${escHtml(u.email)}</div>
+                    ${u.phone ? `<div style="font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;gap:4px;"><span class="material-symbols-outlined" style="font-size:14px;">call</span>${escHtml(u.phone)}</div>` : ''}
                 </div>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;">${groupBadges}</div>
@@ -2785,11 +2786,9 @@ function renderStaff() {
     renderTeamStaff();
 }
 
-const TASK_OPTIONS = ['Reception', 'Piscina', 'Palestra / Fitness', 'Mini Club', 'Animazione Bambini', 'Baby Dance', 'Sport', 'Serate e Spettacoli', 'Magazzino', 'Trasporti / Autista', 'Cucina / Bar'];
-const ROLE_LABEL_OPTIONS = ['Capo Animazione', 'Vice Capo Animazione', 'DJ', 'Fonico', 'Coreografo', 'Autista', 'Magazziniere', 'Hostess / Steward'];
-
-// Team > Staff: animatori e operatori, con compito e ruolo descrittivo assegnabili (a mano o da
-// elenco predefinito) SENZA toccare il ruolo di sistema (che resta invariato e governa i permessi).
+// Team > Staff: animatori e operatori, con compito, ruolo descrittivo, settore e telefono
+// assegnabili a mano (testo libero) SENZA toccare il ruolo di sistema, che resta invariato e
+// continua a governare i permessi.
 function renderTeamStaff() {
     const container = document.getElementById('team-staff-cards');
     if (!container) return;
@@ -2810,12 +2809,18 @@ function renderTeamStaff() {
     }
     const canAssign = currentRole === 'admin';
     container.innerHTML = staff.map(u => {
-        const sysRoleTag = `<span class="sector-tag" style="background:rgba(148,163,184,0.15); color:var(--text-muted); border-color:rgba(148,163,184,0.3);">${ROLE_LABELS[u.role]}</span>`;
+        const sysRoleTag = `<span class="sector-tag" style="background:rgba(148,163,184,0.15); color:var(--text-muted); border-color:rgba(148,163,184,0.3); display:inline-flex; align-items:center; gap:4px;">
+            ${escHtml(roleLabelFor(u.role))}
+            ${canAssign ? `<span class="material-symbols-outlined" style="font-size:12px; cursor:pointer;" onclick="promptRenameRoleLabel('${u.role}')" title="Rinomina questo ruolo per il progetto">edit</span>` : ''}
+        </span>`;
         const taskTag = u.taskLabel ? `<span class="sector-tag">${escHtml(u.taskLabel)}</span>` : '';
         const roleTag = u.roleLabel ? `<span class="sector-tag" style="background:rgba(168,85,247,0.12); color:#a855f7; border-color:rgba(168,85,247,0.25);">${escHtml(u.roleLabel)}</span>` : '';
+        const group = u.sectorGroupId ? (appData.sectorGroups || []).find(g => String(g.id) === String(u.sectorGroupId)) : null;
+        const sectorTag = group ? `<span class="sector-tag" style="background:rgba(16,185,129,0.12); color:#10b981; border-color:rgba(16,185,129,0.25);">${escHtml(group.name)}</span>` : '';
+        const phoneLine = u.phone ? `<div style="font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;gap:4px;"><span class="material-symbols-outlined" style="font-size:14px;">call</span>${escHtml(u.phone)}</div>` : '';
         const assignBtn = canAssign
             ? `<button class="btn-secondary" style="font-size:0.78rem;padding:4px 10px;margin-top:4px;" onclick="openAssignTaskRoleModal(${u.id})">
-                <span class="material-symbols-outlined" style="font-size:14px;">edit</span> Assegna compito/ruolo
+                <span class="material-symbols-outlined" style="font-size:14px;">edit</span> Modifica dettagli
                </button>`
             : '';
         return `
@@ -2827,9 +2832,10 @@ function renderTeamStaff() {
                 <div style="min-width:0;flex:1;">
                     <div style="font-weight:600;font-size:0.9rem;word-break:break-word;">${escHtml(u.firstName)} ${escHtml(u.lastName)}</div>
                     <div style="font-size:0.78rem;color:var(--text-muted);word-break:break-all;">${escHtml(u.email)}</div>
+                    ${phoneLine}
                 </div>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;">${sysRoleTag}${taskTag}${roleTag}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;">${sysRoleTag}${sectorTag}${taskTag}${roleTag}</div>
             ${assignBtn}
         </div>`;
     }).join('');
@@ -2839,18 +2845,25 @@ window.openAssignTaskRoleModal = function(userId) {
     if (currentRole !== 'admin') return;
     const user = (appData.registeredUsers || []).find(u => u.id === userId);
     if (!user) return;
-    const taskOptionsHtml = TASK_OPTIONS.map(t => `<option value="${escHtml(t)}">`).join('');
-    const roleOptionsHtml = ROLE_LABEL_OPTIONS.map(r => `<option value="${escHtml(r)}">`).join('');
-    openModal(`Compito e ruolo di ${escHtml(user.firstName)} ${escHtml(user.lastName)}`, `
+    const groups = appData.sectorGroups || [];
+    const sectorOptionsHtml = `<option value="">-- Nessuno --</option>` +
+        groups.map(g => `<option value="${escHtml(String(g.id))}" ${String(user.sectorGroupId) === String(g.id) ? 'selected' : ''}>${escHtml(g.name)}</option>`).join('');
+    openModal(`Modifica dettagli di ${escHtml(user.firstName)} ${escHtml(user.lastName)}`, `
         <div class="form-group">
             <label>Compito</label>
-            <input type="text" id="assign-task-input" class="form-control" list="task-options-list" value="${escHtml(user.taskLabel || '')}" placeholder="Scegli dall'elenco o scrivi liberamente" autocomplete="off">
-            <datalist id="task-options-list">${taskOptionsHtml}</datalist>
+            <input type="text" id="assign-task-input" class="form-control" value="${escHtml(user.taskLabel || '')}" placeholder="Scrivi il compito" autocomplete="off">
         </div>
         <div class="form-group">
             <label>Ruolo (etichetta descrittiva — non cambia i permessi)</label>
-            <input type="text" id="assign-role-input" class="form-control" list="role-options-list" value="${escHtml(user.roleLabel || '')}" placeholder="Scegli dall'elenco o scrivi liberamente" autocomplete="off">
-            <datalist id="role-options-list">${roleOptionsHtml}</datalist>
+            <input type="text" id="assign-role-input" class="form-control" value="${escHtml(user.roleLabel || '')}" placeholder="Scrivi il ruolo" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label>Settore di appartenenza</label>
+            <select id="assign-sector-input" class="form-control">${sectorOptionsHtml}</select>
+        </div>
+        <div class="form-group">
+            <label>Telefono (per contattarlo anche su WhatsApp)</label>
+            <input type="tel" id="assign-phone-input" class="form-control" value="${escHtml(user.phone || '')}" placeholder="Es. +39 333 1234567" autocomplete="off">
         </div>
         <button class="btn primary" onclick="saveTaskRole(${userId})" style="width:100%; justify-content:center;">Salva</button>
     `);
@@ -2863,12 +2876,16 @@ window.saveTaskRole = function(userId) {
     if (!user) return;
     const taskLabel = (document.getElementById('assign-task-input')?.value || '').trim();
     const roleLabel = (document.getElementById('assign-role-input')?.value || '').trim();
+    const sectorGroupId = document.getElementById('assign-sector-input')?.value || '';
+    const phone = (document.getElementById('assign-phone-input')?.value || '').trim();
     user.taskLabel = taskLabel;
     user.roleLabel = roleLabel;
-    db.ref(dbPath(`appData/registeredUsers/${user._fbKey || user.id}`)).update({ taskLabel, roleLabel });
+    user.sectorGroupId = sectorGroupId;
+    user.phone = phone;
+    db.ref(dbPath(`appData/registeredUsers/${user._fbKey || user.id}`)).update({ taskLabel, roleLabel, sectorGroupId, phone });
     modal.classList.add('hidden');
     renderTeamStaff();
-    showToast(`Compito/ruolo di ${user.firstName} aggiornati.`, 'success');
+    showToast(`Dettagli di ${user.firstName} aggiornati.`, 'success');
 };
 
 window.openAssignGroupsModal = function(userId) {
@@ -2877,8 +2894,9 @@ window.openAssignGroupsModal = function(userId) {
     if (!user) return;
     const fullName = `${user.firstName} ${user.lastName}`;
     const groups = appData.sectorGroups || [];
-    if (groups.length === 0) { showToast('Nessun settore disponibile. Creane uno prima.', 'error'); return; }
-    const checkboxes = groups.map(g => `
+    const checkboxes = groups.length === 0
+        ? '<p style="font-size:0.85rem;color:var(--text-muted);">Nessun settore disponibile ancora.</p>'
+        : groups.map(g => `
         <label style="display:flex;align-items:center;gap:10px;padding:8px 4px;cursor:pointer;border-bottom:1px solid var(--border);">
             <input type="checkbox" class="group-assign-check" value="${g.id}" ${g.manager === fullName ? 'checked' : ''} style="width:16px;height:16px;flex-shrink:0;">
             <span style="font-size:0.9rem;">${escHtml(g.name)}</span>
@@ -2886,6 +2904,10 @@ window.openAssignGroupsModal = function(userId) {
     openModal(`Settori di ${escHtml(user.firstName)} ${escHtml(user.lastName)}`, `
         <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">Seleziona i settori che questo responsabile gestirà.</p>
         <div style="margin-bottom:16px;">${checkboxes}</div>
+        <div class="form-group">
+            <label>Telefono (per contattarlo anche su WhatsApp)</label>
+            <input type="tel" id="assign-resp-phone-input" class="form-control" value="${escHtml(user.phone || '')}" placeholder="Es. +39 333 1234567" autocomplete="off">
+        </div>
         <button class="btn primary" onclick="saveAssignedGroups(${userId})" style="width:100%;justify-content:center;">Salva</button>
     `);
 };
@@ -2895,6 +2917,9 @@ window.saveAssignedGroups = function(userId) {
     const user = (appData.registeredUsers || []).find(u => u.id === userId);
     if (!user) return;
     const fullName = `${user.firstName} ${user.lastName}`;
+    const phone = (document.getElementById('assign-resp-phone-input')?.value || '').trim();
+    user.phone = phone;
+    db.ref(dbPath(`appData/registeredUsers/${user._fbKey || user.id}/phone`)).set(phone);
     const selected = new Set(
         Array.from(document.querySelectorAll('.group-assign-check:checked')).map(cb => Number(cb.value))
     );
@@ -2916,6 +2941,27 @@ window.saveAssignedGroups = function(userId) {
 // ==========================================
 const ROLE_LABELS = { admin: 'Capo Team', responsabile: 'Responsabile', animatore: 'Animatore', operatore: 'Operatore' };
 const ROLE_COLORS = { admin: 'var(--danger)', responsabile: 'var(--primary)', animatore: 'var(--secondary)', operatore: 'var(--accent)' };
+
+// La dicitura di un ruolo può essere rinominata per progetto (es. "Animatore" -> "Steward" per un
+// evento aziendale): il ruolo di sistema sotto resta invariato, cambia solo come viene chiamato.
+function roleLabelFor(role) {
+    const overrides = (appData.settings && appData.settings.roleLabels) || {};
+    return overrides[role] || ROLE_LABELS[role] || role;
+}
+
+window.promptRenameRoleLabel = function(role) {
+    if (currentRole !== 'admin') return;
+    const current = roleLabelFor(role);
+    const name = prompt(`Come vuoi chiamare il ruolo "${ROLE_LABELS[role]}" in questo progetto?`, current);
+    if (!name || !name.trim() || name.trim() === current) return;
+    if (!appData.settings) appData.settings = {};
+    if (!appData.settings.roleLabels) appData.settings.roleLabels = {};
+    appData.settings.roleLabels[role] = name.trim();
+    saveData();
+    renderTeamStaff();
+    renderRegisteredUsers();
+    showToast(`Il ruolo "${ROLE_LABELS[role]}" ora si chiama "${name.trim()}" in questo progetto.`, 'success');
+};
 
 // Contatti Capo Team mostrati agli utenti bloccati nella schermata di login
 function renderAdminContactSettings() {
@@ -3063,18 +3109,18 @@ function renderRegisteredUsers() {
         const lastLogin = u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('it-IT') : '—';
         return `<div class="reg-user-row">
             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
-                <input type="checkbox" class="user-email-checkbox" data-email="${escHtml(u.email)}" style="flex-shrink:0; width:16px; height:16px;">
+                <input type="checkbox" class="user-email-checkbox" data-email="${escHtml(u.email)}" data-phone="${escHtml(u.phone || '')}" data-name="${escHtml(u.firstName)}" style="flex-shrink:0; width:16px; height:16px;">
                 <div style="min-width:0;">
                     <div style="font-weight:600; font-size:0.9rem;">${escHtml(u.firstName)} ${escHtml(u.lastName)}</div>
-                    <div style="font-size:0.77rem; color:var(--text-muted);">${escHtml(u.email)}</div>
+                    <div style="font-size:0.77rem; color:var(--text-muted);">${escHtml(u.email)}${u.phone ? ' · ' + escHtml(u.phone) : ''}</div>
                     <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Ultimo accesso: ${lastLogin}</div>
                 </div>
             </div>
             <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
                 <select class="reg-user-role-select" onchange="changeUserRole(${u.id}, this.value)" style="border:1px solid ${ROLE_COLORS[u.role] || 'var(--border)'}; color:${ROLE_COLORS[u.role] || 'var(--text)'};">
-                    <option value="animatore" ${u.role==='animatore'?'selected':''}>Animatore</option>
-                    <option value="responsabile" ${u.role==='responsabile'?'selected':''}>Responsabile</option>
-                    <option value="operatore" ${u.role==='operatore'?'selected':''}>Operatore</option>
+                    <option value="animatore" ${u.role==='animatore'?'selected':''}>${escHtml(roleLabelFor('animatore'))}</option>
+                    <option value="responsabile" ${u.role==='responsabile'?'selected':''}>${escHtml(roleLabelFor('responsabile'))}</option>
+                    <option value="operatore" ${u.role==='operatore'?'selected':''}>${escHtml(roleLabelFor('operatore'))}</option>
                 </select>
                 <button class="btn-icon" onclick="deleteUserOnly('${escHtml(u._fbKey || String(u.id))}')" title="Elimina doppione — NON blocca l'email, potrà registrarsi di nuovo liberamente" style="color:var(--text-muted);">
                     <span class="material-symbols-outlined" style="font-size:18px;">content_copy</span>
@@ -3101,7 +3147,7 @@ window.changeUserRole = function(id, newRole) {
         (appData.sectorGroups || []).forEach(grp => { if (grp.manager === fullName) grp.manager = ''; });
     }
     saveData();
-    showToast(`Ruolo di ${user.firstName} aggiornato: ${ROLE_LABELS[newRole]}.`, 'success');
+    showToast(`Ruolo di ${user.firstName} aggiornato: ${roleLabelFor(newRole)}.`, 'success');
 };
 
 window.deleteRegisteredUser = function(id) {
@@ -3154,9 +3200,9 @@ window.openAddUserModal = function() {
         <div class="form-group">
             <label>Ruolo</label>
             <select id="add-user-role" class="form-control">
-                <option value="animatore">Animatore</option>
-                <option value="responsabile">Responsabile</option>
-                <option value="operatore">Operatore</option>
+                <option value="animatore">${escHtml(roleLabelFor('animatore'))}</option>
+                <option value="responsabile">${escHtml(roleLabelFor('responsabile'))}</option>
+                <option value="operatore">${escHtml(roleLabelFor('operatore'))}</option>
             </select>
         </div>
         <p id="add-user-error" class="login-error hidden" style="margin-bottom:8px;">Compila tutti i campi con una email valida.</p>
@@ -3190,7 +3236,7 @@ window.saveNewUser = function() {
     };
     db.ref(dbPath(`appData/registeredUsers/${newUser.id}`)).set(newUser);
     modal.classList.add('hidden');
-    showToast(`${firstName} ${lastName} aggiunto come ${ROLE_LABELS[role]}.`, 'success');
+    showToast(`${firstName} ${lastName} aggiunto come ${roleLabelFor(role)}.`, 'success');
 };
 
 window.unblockUser = function(email) {
@@ -3220,6 +3266,30 @@ window.sendEmailToSelected = function() {
     const emails = Array.from(checked).map(cb => cb.dataset.email).filter(Boolean);
     if (emails.length === 0) { showToast('Seleziona almeno un utente.', 'error'); return; }
     window.location.href = `mailto:?bcc=${emails.join(',')}`;
+};
+
+// WhatsApp non offre un vero invio broadcast a più numeri con un solo click (serve la WhatsApp
+// Business API, a pagamento): l'alternativa realistica è aprire una chat precompilata per
+// ciascun destinatario, da inviare una per una.
+window.sendWhatsAppToSelected = function() {
+    const checked = document.querySelectorAll('.user-email-checkbox:checked');
+    const people = Array.from(checked)
+        .map(cb => ({ name: cb.dataset.name || '', phone: (cb.dataset.phone || '').trim() }))
+        .filter(p => p.phone);
+    if (people.length === 0) { showToast('Nessuno dei selezionati ha un numero di telefono salvato.', 'error'); return; }
+    const message = prompt('Messaggio da inviare su WhatsApp (si aprirà una chat già pronta per ciascuna persona, da inviare una per una):');
+    if (!message) return;
+    const encoded = encodeURIComponent(message);
+    const links = people.map(p => {
+        const digits = p.phone.replace(/[^\d+]/g, '').replace(/^\+?0+/, '+');
+        return `<a href="https://wa.me/${digits.replace('+', '')}?text=${encoded}" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:8px; padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; text-decoration:none; color:var(--text);">
+            <span class="material-symbols-outlined" style="color:#25D366;">chat</span> ${escHtml(p.name)} — ${escHtml(p.phone)}
+        </a>`;
+    }).join('');
+    openModal('Apri chat WhatsApp', `
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">WhatsApp non permette di inviare a più persone con un solo click: clicca ciascun contatto per aprire la chat già scritta, poi premi Invio dentro WhatsApp.</p>
+        ${links}
+    `);
 };
 
 // Events (Grid)
@@ -4155,7 +4225,7 @@ function staffCheckboxesHTML(selectedNames) {
             return `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;">
                 <input type="checkbox" class="staff-vis-check" value="${escHtml(fullName)}" ${selectedNames.includes(fullName) ? 'checked' : ''}>
                 <span style="font-size:0.9rem;">${escHtml(fullName)}</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);">${ROLE_LABELS[u.role] || u.role}</span>
+                <span style="font-size:0.75rem;color:var(--text-muted);">${roleLabelFor(u.role)}</span>
             </label>`;
         }).join('')}
     </div>`;
