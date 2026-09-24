@@ -155,6 +155,7 @@ body {
 /* Views */
 .view { display: block; animation: fadeIn 0.4s ease forwards; }
 .view.hidden { display: none; }
+#team-tab-responsabili.hidden, #team-tab-staff.hidden { display: none; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .view-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .view-header h2 { font-family: var(--font-heading); font-weight: 600; }

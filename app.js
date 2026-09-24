@@ -1383,6 +1383,7 @@ async function sendPushNotification(title, message, senderEmail, view) {
 window.searchState = {
     inventory: { q: '', groupId: '' },
     staff:     { q: '' },
+    teamStaff: { q: '' },
     events:    { q: '', week: '', type: '' },
     files:     { q: '', type: '' },
     users:     { q: '', role: '' }
@@ -1448,6 +1449,40 @@ function renderStaffChips() {
         inp._wired = true;
     }
 }
+
+// ── Team > Staff (Animatori/Operatori) ──
+window.applyTeamStaffSearch = function(val) {
+    window.searchState.teamStaff.q = val;
+    _updateClear('search-team-staff-input', 'search-team-staff-clear');
+    renderTeamStaff();
+};
+window.clearTeamStaffSearch = function() {
+    window.searchState.teamStaff.q = '';
+    const el = document.getElementById('search-team-staff-input');
+    if (el) el.value = '';
+    _updateClear('search-team-staff-input', 'search-team-staff-clear');
+    renderTeamStaff();
+};
+function wireTeamStaffSearch() {
+    const inp = document.getElementById('search-team-staff-input');
+    if (inp && !inp._wired) {
+        inp.addEventListener('input', () => applyTeamStaffSearch(inp.value));
+        inp._wired = true;
+    }
+}
+
+// ── Team tabs (Responsabili / Staff) ──
+window.switchTeamTab = function(tab) {
+    const tabResp = document.getElementById('team-tab-responsabili');
+    const tabStaff = document.getElementById('team-tab-staff');
+    const btnResp = document.getElementById('team-tabbtn-responsabili');
+    const btnStaff = document.getElementById('team-tabbtn-staff');
+    if (tabResp) tabResp.classList.toggle('hidden', tab !== 'responsabili');
+    if (tabStaff) tabStaff.classList.toggle('hidden', tab !== 'staff');
+    if (btnResp) btnResp.classList.toggle('active', tab === 'responsabili');
+    if (btnStaff) btnStaff.classList.toggle('active', tab === 'staff');
+    if (tab === 'staff') renderTeamStaff();
+};
 
 // ── Events ──
 window.applyEventsSearch = function(val) {
@@ -2746,7 +2781,95 @@ function renderStaff() {
             }
         });
     });
+
+    renderTeamStaff();
 }
+
+const TASK_OPTIONS = ['Reception', 'Piscina', 'Palestra / Fitness', 'Mini Club', 'Animazione Bambini', 'Baby Dance', 'Sport', 'Serate e Spettacoli', 'Magazzino', 'Trasporti / Autista', 'Cucina / Bar'];
+const ROLE_LABEL_OPTIONS = ['Capo Animazione', 'Vice Capo Animazione', 'DJ', 'Fonico', 'Coreografo', 'Autista', 'Magazziniere', 'Hostess / Steward'];
+
+// Team > Staff: animatori e operatori, con compito e ruolo descrittivo assegnabili (a mano o da
+// elenco predefinito) SENZA toccare il ruolo di sistema (che resta invariato e governa i permessi).
+function renderTeamStaff() {
+    const container = document.getElementById('team-staff-cards');
+    if (!container) return;
+    wireTeamStaffSearch();
+    const q = (window.searchState.teamStaff.q || '').toLowerCase().trim();
+    let staff = (appData.registeredUsers || []).filter(u => u.role === 'animatore' || u.role === 'operatore');
+    if (q) {
+        staff = staff.filter(u =>
+            `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) ||
+            (u.email || '').toLowerCase().includes(q) ||
+            (u.taskLabel || '').toLowerCase().includes(q) ||
+            (u.roleLabel || '').toLowerCase().includes(q)
+        );
+    }
+    if (staff.length === 0) {
+        container.innerHTML = `<p style="color:var(--text-muted);font-size:0.9rem;grid-column:1/-1;">${q ? 'Nessuno staff trovato.' : 'Nessun animatore/operatore registrato.'}</p>`;
+        return;
+    }
+    const canAssign = currentRole === 'admin';
+    container.innerHTML = staff.map(u => {
+        const sysRoleTag = `<span class="sector-tag" style="background:rgba(148,163,184,0.15); color:var(--text-muted); border-color:rgba(148,163,184,0.3);">${ROLE_LABELS[u.role]}</span>`;
+        const taskTag = u.taskLabel ? `<span class="sector-tag">${escHtml(u.taskLabel)}</span>` : '';
+        const roleTag = u.roleLabel ? `<span class="sector-tag" style="background:rgba(168,85,247,0.12); color:#a855f7; border-color:rgba(168,85,247,0.25);">${escHtml(u.roleLabel)}</span>` : '';
+        const assignBtn = canAssign
+            ? `<button class="btn-secondary" style="font-size:0.78rem;padding:4px 10px;margin-top:4px;" onclick="openAssignTaskRoleModal(${u.id})">
+                <span class="material-symbols-outlined" style="font-size:14px;">edit</span> Assegna compito/ruolo
+               </button>`
+            : '';
+        return `
+        <div class="card staff-card" style="padding:16px;display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--secondary),var(--accent));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:0.85rem;flex-shrink:0;">
+                    ${escHtml((u.firstName||'?')[0])}${escHtml((u.lastName||'?')[0])}
+                </div>
+                <div style="min-width:0;flex:1;">
+                    <div style="font-weight:600;font-size:0.9rem;word-break:break-word;">${escHtml(u.firstName)} ${escHtml(u.lastName)}</div>
+                    <div style="font-size:0.78rem;color:var(--text-muted);word-break:break-all;">${escHtml(u.email)}</div>
+                </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;">${sysRoleTag}${taskTag}${roleTag}</div>
+            ${assignBtn}
+        </div>`;
+    }).join('');
+}
+
+window.openAssignTaskRoleModal = function(userId) {
+    if (currentRole !== 'admin') return;
+    const user = (appData.registeredUsers || []).find(u => u.id === userId);
+    if (!user) return;
+    const taskOptionsHtml = TASK_OPTIONS.map(t => `<option value="${escHtml(t)}">`).join('');
+    const roleOptionsHtml = ROLE_LABEL_OPTIONS.map(r => `<option value="${escHtml(r)}">`).join('');
+    openModal(`Compito e ruolo di ${escHtml(user.firstName)} ${escHtml(user.lastName)}`, `
+        <div class="form-group">
+            <label>Compito</label>
+            <input type="text" id="assign-task-input" class="form-control" list="task-options-list" value="${escHtml(user.taskLabel || '')}" placeholder="Scegli dall'elenco o scrivi liberamente" autocomplete="off">
+            <datalist id="task-options-list">${taskOptionsHtml}</datalist>
+        </div>
+        <div class="form-group">
+            <label>Ruolo (etichetta descrittiva — non cambia i permessi)</label>
+            <input type="text" id="assign-role-input" class="form-control" list="role-options-list" value="${escHtml(user.roleLabel || '')}" placeholder="Scegli dall'elenco o scrivi liberamente" autocomplete="off">
+            <datalist id="role-options-list">${roleOptionsHtml}</datalist>
+        </div>
+        <button class="btn primary" onclick="saveTaskRole(${userId})" style="width:100%; justify-content:center;">Salva</button>
+    `);
+    setTimeout(() => document.getElementById('assign-task-input')?.focus(), 100);
+};
+
+window.saveTaskRole = function(userId) {
+    if (currentRole !== 'admin') return;
+    const user = (appData.registeredUsers || []).find(u => u.id === userId);
+    if (!user) return;
+    const taskLabel = (document.getElementById('assign-task-input')?.value || '').trim();
+    const roleLabel = (document.getElementById('assign-role-input')?.value || '').trim();
+    user.taskLabel = taskLabel;
+    user.roleLabel = roleLabel;
+    db.ref(dbPath(`appData/registeredUsers/${user._fbKey || user.id}`)).update({ taskLabel, roleLabel });
+    modal.classList.add('hidden');
+    renderTeamStaff();
+    showToast(`Compito/ruolo di ${user.firstName} aggiornati.`, 'success');
+};
 
 window.openAssignGroupsModal = function(userId) {
     if (currentRole !== 'admin') return;

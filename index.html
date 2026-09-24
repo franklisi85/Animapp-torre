@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-    <link rel="stylesheet" href="style.css?v=23">
+    <link rel="stylesheet" href="style.css?v=24">
     
     <!-- PWA Config -->
     <link rel="manifest" href="manifest.json">
@@ -414,7 +414,7 @@
                 </li>
                 <li data-view="staff">
                     <span class="material-symbols-outlined">manage_accounts</span>
-                    <span>Responsabili</span>
+                    <span>Team</span>
                 </li>
                 <li data-view="events">
                     <span class="material-symbols-outlined">calendar_month</span>
@@ -576,21 +576,39 @@
                     </div>
                 </section>
 
-                <!-- Responsabili View -->
+                <!-- Team View (Responsabili + Staff) -->
                 <section id="view-staff" class="view hidden">
-                    <div class="view-header" style="margin-bottom:20px;">
-                        <h2>Team Responsabili</h2>
+                    <div class="view-header" style="margin-bottom:14px;">
+                        <h2>Team</h2>
                     </div>
                     <div id="page-note-staff"></div>
-                    <div class="search-bar-section" id="search-staff">
-                        <div class="search-input-wrapper">
-                            <span class="material-symbols-outlined">search</span>
-                            <input type="text" class="search-input" id="search-staff-input" placeholder="Cerca responsabile per nome...">
-                            <button class="search-clear hidden" id="search-staff-clear" onclick="clearStaffSearch()"><span class="material-symbols-outlined">close</span></button>
-                        </div>
-                        <div class="filter-chips" id="staff-group-chips"></div>
+                    <div class="filter-chips" style="margin-bottom:16px;">
+                        <button type="button" class="filter-chip active" id="team-tabbtn-responsabili" onclick="switchTeamTab('responsabili')">Responsabili</button>
+                        <button type="button" class="filter-chip" id="team-tabbtn-staff" onclick="switchTeamTab('staff')">Staff</button>
                     </div>
-                    <div id="staff-cards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px;"></div>
+
+                    <div id="team-tab-responsabili">
+                        <div class="search-bar-section" id="search-staff">
+                            <div class="search-input-wrapper">
+                                <span class="material-symbols-outlined">search</span>
+                                <input type="text" class="search-input" id="search-staff-input" placeholder="Cerca responsabile per nome...">
+                                <button class="search-clear hidden" id="search-staff-clear" onclick="clearStaffSearch()"><span class="material-symbols-outlined">close</span></button>
+                            </div>
+                            <div class="filter-chips" id="staff-group-chips"></div>
+                        </div>
+                        <div id="staff-cards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px;"></div>
+                    </div>
+
+                    <div id="team-tab-staff" class="hidden">
+                        <div class="search-bar-section" id="search-team-staff">
+                            <div class="search-input-wrapper">
+                                <span class="material-symbols-outlined">search</span>
+                                <input type="text" class="search-input" id="search-team-staff-input" placeholder="Cerca per nome, compito o ruolo...">
+                                <button class="search-clear hidden" id="search-team-staff-clear" onclick="clearTeamStaffSearch()"><span class="material-symbols-outlined">close</span></button>
+                            </div>
+                        </div>
+                        <div id="team-staff-cards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px;"></div>
+                    </div>
                 </section>
 
                 <!-- Events View (Biweekly Calendar) -->
@@ -948,7 +966,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.71"></script>
+    <script src="app.js?v=4.72"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>
