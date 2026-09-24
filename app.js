@@ -3263,16 +3263,48 @@ window.toggleSelectAllUsers = function(cb) {
     document.querySelectorAll('.user-email-checkbox').forEach(el => { el.checked = cb.checked; });
 };
 
+// Copia testo negli appunti con un fallback per contesti senza Clipboard API (es. non-HTTPS).
+function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast('Copiato negli appunti.', 'success')).catch(() => fallbackCopy(text));
+    } else {
+        fallbackCopy(text);
+    }
+    function fallbackCopy(t) {
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showToast('Copiato negli appunti.', 'success'); } catch(e) { showToast('Copia non riuscita: selezionalo a mano.', 'error'); }
+        document.body.removeChild(ta);
+    }
+}
+
+// mailto: apre il client di posta predefinito del dispositivo — se il dispositivo non ne ha uno
+// configurato (comune su Mac/PC senza Mail/Outlook impostati) non succede visibilmente nulla.
+// Per questo, oltre al tentativo mailto, mostriamo SEMPRE anche gli indirizzi pronti da copiare,
+// così c'è comunque un modo di procedere (incollarli nel CCN della propria webmail).
 window.sendEmailToSelected = function() {
     const checked = document.querySelectorAll('.user-email-checkbox:checked');
     const emails = Array.from(checked).map(cb => cb.dataset.email).filter(Boolean);
     if (emails.length === 0) { showToast('Seleziona almeno un utente.', 'error'); return; }
     window.location.href = `mailto:?bcc=${emails.join(',')}`;
+    const list = emails.join(', ');
+    openModal('Indirizzi email selezionati', `
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">Se non si è aperto il tuo programma di posta (succede se il dispositivo non ne ha uno predefinito configurato), copia questi indirizzi e incollali nel campo CCN/BCC della tua webmail (Gmail, Outlook.com, ecc.).</p>
+        <textarea class="form-control" rows="4" readonly style="resize:vertical; margin-bottom:12px;">${escHtml(list)}</textarea>
+        <button class="btn primary" onclick="copyTextToClipboard('${list.replace(/'/g, "\\'")}')" style="width:100%; justify-content:center;">
+            <span class="material-symbols-outlined" style="font-size:16px;">content_copy</span> Copia indirizzi
+        </button>
+    `);
 };
 
 // WhatsApp non offre un vero invio broadcast a più numeri con un solo click (serve la WhatsApp
 // Business API, a pagamento): l'alternativa realistica è aprire una chat precompilata per
-// ciascun destinatario, da inviare una per una.
+// ciascun destinatario, da inviare una per una. Usiamo lo schema whatsapp:// (non il sito wa.me)
+// per saltare la pagina web intermedia e aprire direttamente l'app, se installata sul dispositivo.
 window.sendWhatsAppToSelected = function() {
     const checked = document.querySelectorAll('.user-email-checkbox:checked');
     const people = Array.from(checked)
@@ -3283,13 +3315,18 @@ window.sendWhatsAppToSelected = function() {
     if (!message) return;
     const encoded = encodeURIComponent(message);
     const links = people.map(p => {
-        const digits = p.phone.replace(/[^\d+]/g, '').replace(/^\+?0+/, '+');
-        return `<a href="https://wa.me/${digits.replace('+', '')}?text=${encoded}" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:8px; padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; text-decoration:none; color:var(--text);">
-            <span class="material-symbols-outlined" style="color:#25D366;">chat</span> ${escHtml(p.name)} — ${escHtml(p.phone)}
-        </a>`;
+        const digits = p.phone.replace(/[^\d+]/g, '').replace(/^\+?0+/, '+').replace('+', '');
+        return `<div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+            <a href="whatsapp://send?phone=${digits}&text=${encoded}" style="flex:1; display:flex; align-items:center; gap:8px; padding:10px; border:1px solid var(--border); border-radius:8px; text-decoration:none; color:var(--text);">
+                <span class="material-symbols-outlined" style="color:#25D366;">chat</span> ${escHtml(p.name)} — ${escHtml(p.phone)}
+            </a>
+            <a href="https://wa.me/${digits}?text=${encoded}" target="_blank" rel="noopener" class="btn-icon" title="In alternativa, apri da browser (wa.me)">
+                <span class="material-symbols-outlined" style="font-size:18px;">public</span>
+            </a>
+        </div>`;
     }).join('');
     openModal('Apri chat WhatsApp', `
-        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">WhatsApp non permette di inviare a più persone con un solo click: clicca ciascun contatto per aprire la chat già scritta, poi premi Invio dentro WhatsApp.</p>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">Clicca ciascun contatto per aprire la chat già scritta nell'app WhatsApp (deve essere installata su questo dispositivo), poi premi Invio dentro WhatsApp. Se non si apre nulla, usa l'icona a fianco per aprirla dal browser.</p>
         ${links}
     `);
 };
