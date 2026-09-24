@@ -46,7 +46,11 @@ exports.handler = async (event) => {
             body: JSON.stringify(payload)
         });
         const data = await res.json();
-        return { statusCode: 200, body: JSON.stringify(data) };
+        // OneSignal risponde spesso con HTTP 200 anche quando l'invio non ha raggiunto nessuno
+        // (es. "All included players are not subscribed"): senza questo controllo il chiamante
+        // vedrebbe una risposta "ok" e l'errore passerebbe inosservato.
+        const failed = !res.ok || (Array.isArray(data.errors) && data.errors.length > 0);
+        return { statusCode: failed ? 502 : 200, body: JSON.stringify(data) };
     } catch (err) {
         return { statusCode: 500, body: err.message };
     }

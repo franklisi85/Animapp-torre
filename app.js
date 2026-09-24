@@ -1366,12 +1366,14 @@ async function sendPushNotification(title, message, senderEmail, view) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, message, view, projectId: currentProjectId })
         });
-        if (!res.ok && currentRole === 'admin') {
-            const txt = await res.text();
-            showToast('Errore notifica: ' + res.status + ' ' + txt, 'error');
+        const txt = await res.text();
+        if (!res.ok && (isSuperAdmin || currentRole === 'admin')) {
+            let detail = txt;
+            try { const data = JSON.parse(txt); if (Array.isArray(data.errors)) detail = data.errors.join(', '); } catch(e) {}
+            showToast('Notifica push non recapitata: ' + detail, 'error');
         }
     } catch (e) {
-        if (currentRole === 'admin') showToast('Notifica non inviata: ' + e.message, 'error');
+        if (isSuperAdmin || currentRole === 'admin') showToast('Notifica non inviata: ' + e.message, 'error');
     }
 }
 
