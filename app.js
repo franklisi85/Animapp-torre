@@ -3201,6 +3201,9 @@ window.deleteRegisteredUser = function(id) {
 
 // Rimuove e blocca in blocco tutti gli utenti selezionati (stessa logica di deleteRegisteredUser,
 // ma con un'unica conferma e un unico salvataggio invece di uno per persona).
+// Eliminazione totale (NON blocca le email): a differenza della X singola su un utente, che
+// blocca per impedire il rientro, qui l'obiettivo è ripulire in fretta — l'email resta libera
+// e potrà registrarsi di nuovo in futuro se serve.
 window.deleteSelectedUsers = function() {
     if (currentRole !== 'admin') return;
     const ids = Array.from(document.querySelectorAll('.user-email-checkbox:checked')).map(cb => Number(cb.dataset.id)).filter(Boolean);
@@ -3208,21 +3211,18 @@ window.deleteSelectedUsers = function() {
     const users = (appData.registeredUsers || []).filter(u => ids.includes(u.id));
     if (users.length === 0) return;
     const names = users.map(u => `${u.firstName} ${u.lastName}`).join(', ');
-    if (!confirm(`Rimuovere e bloccare ${users.length} utenti selezionati?\n${names}\n\nLe loro email verranno bloccate: potranno rientrare solo se le sblocchi tu, oppure usando un'altra email.`)) return;
+    if (!confirm(`Eliminare definitivamente ${users.length} utenti selezionati?\n${names}\n\nLe email NON verranno bloccate: potranno registrarsi di nuovo in futuro.`)) return;
 
-    if (!appData.blockedEmails) appData.blockedEmails = [];
     users.forEach(user => {
         if (user.role === 'responsabile') {
             const fullName = `${user.firstName} ${user.lastName}`;
             (appData.sectors || []).forEach(sec => { if (sec.manager === fullName) sec.manager = ''; });
             (appData.sectorGroups || []).forEach(grp => { if (grp.manager === fullName) grp.manager = ''; });
         }
-        if (!appData.blockedEmails.includes(user.email)) appData.blockedEmails.push(user.email);
-        db.ref('blockedIndex/' + emailKey(user.email)).set(currentProjectId).catch(() => {});
     });
     appData.registeredUsers = appData.registeredUsers.filter(u => !ids.includes(u.id));
     saveData();
-    showToast(`${users.length} utenti rimossi e bloccati.`, 'success');
+    showToast(`${users.length} utenti eliminati.`, 'success');
 };
 
 window.deleteUserOnly = function(fbKey) {
