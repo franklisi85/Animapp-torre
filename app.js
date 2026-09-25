@@ -1985,18 +1985,30 @@ function renderNotifications() {
         return;
     }
 
-    // Download button at top
+    // Download + selezione multipla in alto
     const downloadDiv = document.createElement('div');
-    downloadDiv.style.cssText = 'padding:12px 16px; border-bottom:1px solid var(--border); text-align:right;';
-    downloadDiv.innerHTML = `<button class="btn small primary" onclick="downloadRequestsList()" style="width:100%;justify-content:center;"><span class="material-symbols-outlined" style="font-size:16px;">download</span> Scarica Lista Richieste</button>`;
+    downloadDiv.style.cssText = 'padding:12px 16px; border-bottom:1px solid var(--border);';
+    downloadDiv.innerHTML = `
+        <button class="btn small primary" onclick="downloadRequestsList()" style="width:100%;justify-content:center; margin-bottom:8px;"><span class="material-symbols-outlined" style="font-size:16px;">download</span> Scarica Lista Richieste</button>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; color:var(--text-muted); cursor:pointer;">
+                <input type="checkbox" id="select-all-requests" onchange="toggleSelectAllRequests(this)"> Seleziona tutte
+            </label>
+            <button class="btn small" onclick="deleteSelectedRequests()" style="background:var(--danger); color:white; border:none; padding:4px 10px; font-size:0.78rem;">
+                <span class="material-symbols-outlined" style="font-size:14px;">delete_sweep</span> Elimina selezionate
+            </button>
+        </div>`;
     notifList.appendChild(downloadDiv);
-    
+
     appData.notifications.forEach(n => {
         const div = document.createElement('div');
         div.className = 'notif-item';
         div.innerHTML = `
             <div class="n-header">
-                <span>${n.sectorName}</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" class="request-checkbox" data-id="${n.id}" style="flex-shrink:0; width:15px; height:15px;">
+                    <span>${n.sectorName}</span>
+                </div>
                 <div style="display:flex; gap:6px; align-items:center;">
                     ${n.confirmCode ? `<span class="confirm-code">${n.confirmCode}</span>` : ''}
                     <span class="badge" style="background:#fff3cd; color:#856404;">In Attesa</span>
@@ -2063,6 +2075,23 @@ window.deleteRequest = function(notifId) {
     updateNotificationsBadge();
     if (appData.notifications.length === 0) notifDropdown.classList.add('hidden');
     showToast('Richiesta eliminata.', 'success');
+};
+
+window.toggleSelectAllRequests = function(cb) {
+    document.querySelectorAll('.request-checkbox').forEach(el => { el.checked = cb.checked; });
+};
+
+window.deleteSelectedRequests = function() {
+    const ids = Array.from(document.querySelectorAll('.request-checkbox:checked')).map(cb => Number(cb.dataset.id)).filter(Boolean);
+    if (ids.length === 0) { showToast('Seleziona almeno una richiesta.', 'error'); return; }
+    if (!confirm(`Eliminare ${ids.length} richieste selezionate? Il materiale NON verrà reintegrato.`)) return;
+    appData.notifications = appData.notifications.filter(n => !ids.includes(n.id));
+    saveData();
+    renderNotifications();
+    renderInventory();
+    updateNotificationsBadge();
+    if (appData.notifications.length === 0) notifDropdown.classList.add('hidden');
+    showToast(`${ids.length} richieste eliminate.`, 'success');
 };
 
 window.approveRestock = function(notifId, secId, matId, qty) {
@@ -3111,7 +3140,7 @@ function renderRegisteredUsers() {
         const lastLogin = u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('it-IT') : '—';
         return `<div class="reg-user-row">
             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
-                <input type="checkbox" class="user-email-checkbox" data-email="${escHtml(u.email)}" data-phone="${escHtml(u.phone || '')}" data-name="${escHtml(u.firstName)}" style="flex-shrink:0; width:16px; height:16px;">
+                <input type="checkbox" class="user-email-checkbox" data-id="${u.id}" data-email="${escHtml(u.email)}" data-phone="${escHtml(u.phone || '')}" data-name="${escHtml(u.firstName)}" style="flex-shrink:0; width:16px; height:16px;">
                 <div style="min-width:0;">
                     <div style="font-weight:600; font-size:0.9rem;">${escHtml(u.firstName)} ${escHtml(u.lastName)}</div>
                     <div style="font-size:0.77rem; color:var(--text-muted);">${escHtml(u.email)}${u.phone ? ' · ' + escHtml(u.phone) : ''}</div>
@@ -3168,6 +3197,32 @@ window.deleteRegisteredUser = function(id) {
     saveData();
     db.ref('blockedIndex/' + emailKey(user.email)).set(currentProjectId).catch(() => {});
     showToast(`${user.firstName} ${user.lastName} rimosso e bloccato.`, 'success');
+};
+
+// Rimuove e blocca in blocco tutti gli utenti selezionati (stessa logica di deleteRegisteredUser,
+// ma con un'unica conferma e un unico salvataggio invece di uno per persona).
+window.deleteSelectedUsers = function() {
+    if (currentRole !== 'admin') return;
+    const ids = Array.from(document.querySelectorAll('.user-email-checkbox:checked')).map(cb => Number(cb.dataset.id)).filter(Boolean);
+    if (ids.length === 0) { showToast('Seleziona almeno un utente.', 'error'); return; }
+    const users = (appData.registeredUsers || []).filter(u => ids.includes(u.id));
+    if (users.length === 0) return;
+    const names = users.map(u => `${u.firstName} ${u.lastName}`).join(', ');
+    if (!confirm(`Rimuovere e bloccare ${users.length} utenti selezionati?\n${names}\n\nLe loro email verranno bloccate: potranno rientrare solo se le sblocchi tu, oppure usando un'altra email.`)) return;
+
+    if (!appData.blockedEmails) appData.blockedEmails = [];
+    users.forEach(user => {
+        if (user.role === 'responsabile') {
+            const fullName = `${user.firstName} ${user.lastName}`;
+            (appData.sectors || []).forEach(sec => { if (sec.manager === fullName) sec.manager = ''; });
+            (appData.sectorGroups || []).forEach(grp => { if (grp.manager === fullName) grp.manager = ''; });
+        }
+        if (!appData.blockedEmails.includes(user.email)) appData.blockedEmails.push(user.email);
+        db.ref('blockedIndex/' + emailKey(user.email)).set(currentProjectId).catch(() => {});
+    });
+    appData.registeredUsers = appData.registeredUsers.filter(u => !ids.includes(u.id));
+    saveData();
+    showToast(`${users.length} utenti rimossi e bloccati.`, 'success');
 };
 
 window.deleteUserOnly = function(fbKey) {
@@ -3429,10 +3484,12 @@ function renderEvents() {
             const isAdmin = currentRole === 'admin';
             const editBtn = isAdmin ? `<span class="material-symbols-outlined edit-ev-btn admin-only" onclick="openEditEventModal(event, ${ev.id})" title="Modifica">edit</span>` : '';
             const delBtn = isAdmin ? `<span class="material-symbols-outlined delete-ev-btn admin-only" onclick="event.stopPropagation(); deleteEvent(${ev.id})">close</span>` : '';
+            const selectBox = isAdmin ? `<input type="checkbox" class="event-select-checkbox event-item-checkbox admin-only" data-id="${ev.id}" onclick="event.stopPropagation()">` : '';
             const isRest = ev.isRest;
             const hasDetails = ev.description || ev.staff || ev.notes;
             container.innerHTML += `
                 <div class="event-box ${isAdmin ? 'admin-only-btn':''} ${isRest ? 'rest' : ''}" onclick="openEventDetail('${ev.id}')" style="cursor:pointer;">
+                    ${selectBox}
                     ${editBtn}
                     ${delBtn}
                     <span class="t">${isRest ? '<span class="material-symbols-outlined" style="font-size:16px; vertical-align:middle; margin-right:4px;">hotel</span>' : ''}${ev.title}</span>
@@ -3524,11 +3581,32 @@ window.saveEventEdit = function(evId) {
 }
 
 window.deleteEvent = function(id) {
-    if(confirm("Cancellare evento?")) { 
-        appData.events = appData.events.filter(e => String(e.id) !== String(id)); 
-        window.saveData(); 
+    if(confirm("Cancellare evento?")) {
+        appData.events = appData.events.filter(e => String(e.id) !== String(id));
+        window.saveData();
     }
 }
+
+window.toggleSelectAllEvents = function(cb) {
+    // Seleziona solo gli eventi attualmente visibili (rispetta i filtri settimana/tipo/ricerca).
+    document.querySelectorAll('.event-item-checkbox').forEach(el => {
+        const box = el.closest('.event-box');
+        const dayCol = el.closest('.day-col');
+        const weekGrid = el.closest('.calendar-grid');
+        const visible = (!box || box.style.display !== 'none') && (!weekGrid || weekGrid.style.display !== 'none');
+        if (visible) el.checked = cb.checked;
+    });
+};
+
+window.deleteSelectedEvents = function() {
+    if (currentRole !== 'admin') return;
+    const ids = Array.from(document.querySelectorAll('.event-item-checkbox:checked')).map(cb => String(cb.dataset.id));
+    if (ids.length === 0) { showToast('Seleziona almeno un evento.', 'error'); return; }
+    if (!confirm(`Eliminare ${ids.length} eventi selezionati?`)) return;
+    appData.events = appData.events.filter(e => !ids.includes(String(e.id)));
+    saveData();
+    showToast(`${ids.length} eventi eliminati.`, 'success');
+};
 
 document.getElementById('btn-add-event').addEventListener('click', () => {
     let opts = '<optgroup label="Settimana 1">';
@@ -4405,7 +4483,10 @@ function renderFiles() {
               }</span>`
             : '';
 
+        const selectBox = isAdmin ? `<input type="checkbox" class="doc-select-checkbox file-item-checkbox" data-id="${item.id}" onclick="event.stopPropagation()">` : '';
+
         card.innerHTML = `
+            ${selectBox}
             ${delBtn}
             <div class="folder-tile-icon" onclick="navigateToFolder('${item.id}')">
                 <span class="material-symbols-outlined">${icon}</span>
@@ -4485,7 +4566,10 @@ function renderFiles() {
             ? `<span style="color:#0061fe; font-weight:500;">Dropbox</span> · ${item.date}`
             : `Caricato il: ${item.date}`;
 
+        const selectBox = isAdmin ? `<input type="checkbox" class="doc-select-checkbox file-item-checkbox" data-id="${item.id}">` : '';
+
         card.innerHTML = `
+            ${selectBox}
             ${delBtn}
             <div class="doc-icon"><span class="material-symbols-outlined" style="${iconColor}">${getFileIcon(item.type)}</span></div>
             <div class="doc-info">
@@ -5012,6 +5096,37 @@ window.deleteFile = function(event, itemId) {
         renderFiles();
     }
 }
+
+window.toggleSelectAllFiles = function(cb) {
+    document.querySelectorAll('.file-item-checkbox').forEach(el => { el.checked = cb.checked; });
+};
+
+// Elimina in blocco tutti gli elementi selezionati (stessa logica ricorsiva di deleteFile per le
+// cartelle — elimina anche il loro contenuto — ma con un'unica conferma e un unico salvataggio).
+window.deleteSelectedFiles = function() {
+    if (currentRole !== 'admin') return;
+    const ids = Array.from(document.querySelectorAll('.file-item-checkbox:checked')).map(cb => cb.dataset.id);
+    if (ids.length === 0) { showToast('Seleziona almeno un elemento.', 'error'); return; }
+    if (!confirm(`Eliminare ${ids.length} elementi selezionati? Le cartelle selezionate elimineranno automaticamente anche tutto il loro contenuto. L'operazione non è reversibile.`)) return;
+
+    let toDelete = ids.map(String);
+    let foundNew = true;
+    while (foundNew) {
+        foundNew = false;
+        appData.files.forEach(f => {
+            const parentStr = String(f.parentId || 'root');
+            if (toDelete.includes(parentStr) && !toDelete.includes(String(f.id))) {
+                toDelete.push(String(f.id));
+                foundNew = true;
+            }
+        });
+    }
+    const removedCount = toDelete.length;
+    appData.files = appData.files.filter(f => !toDelete.includes(String(f.id)));
+    saveData();
+    renderFiles();
+    showToast(`${removedCount} elementi eliminati.`, 'success');
+};
 
 window.moveFileItem = function(event, itemId, direction) {
     event.stopPropagation();

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-    <link rel="stylesheet" href="style.css?v=25">
+    <link rel="stylesheet" href="style.css?v=26">
     
     <!-- PWA Config -->
     <link rel="manifest" href="manifest.json">
@@ -649,6 +649,14 @@
                             <button class="filter-chip" data-filter="type" data-val="rest" onclick="applyEventsFilter('type','rest')">Solo riposi</button>
                         </div>
                     </div>
+                    <div class="admin-only" style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem; color:var(--text-muted); cursor:pointer;">
+                            <input type="checkbox" id="select-all-events" onchange="toggleSelectAllEvents(this)"> Seleziona tutti (visibili)
+                        </label>
+                        <button class="btn small" onclick="deleteSelectedEvents()" style="background:var(--danger); color:white; border:none;">
+                            <span class="material-symbols-outlined" style="font-size:16px;">delete_sweep</span> Elimina selezionati
+                        </button>
+                    </div>
 
                     <!-- Settimana 1 -->
                     <div class="planning-week-label" id="week1-label">Settimana 1</div>
@@ -720,6 +728,14 @@
                         </div>
                     </div>
                     <div id="folder-note-area"></div>
+                    <div class="admin-only" style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem; color:var(--text-muted); cursor:pointer;">
+                            <input type="checkbox" id="select-all-files" onchange="toggleSelectAllFiles(this)"> Seleziona tutti (in questa cartella)
+                        </label>
+                        <button class="btn small" onclick="deleteSelectedFiles()" style="background:var(--danger); color:white; border:none;">
+                            <span class="material-symbols-outlined" style="font-size:16px;">delete_sweep</span> Elimina selezionati
+                        </button>
+                    </div>
                     <div id="folders-grid" class="folders-grid" style="margin-bottom: 20px;">
                         <!-- Folders injected here -->
                     </div>
@@ -900,6 +916,10 @@
                                 <span class="material-symbols-outlined" style="font-size:16px;">chat</span>
                                 WhatsApp
                             </button>
+                            <button class="btn-secondary" style="padding:6px 14px; font-size:0.82rem; display:flex; align-items:center; gap:6px; color:var(--danger); border-color:var(--danger);" onclick="deleteSelectedUsers()">
+                                <span class="material-symbols-outlined" style="font-size:16px;">delete_sweep</span>
+                                Elimina selezionati
+                            </button>
                         </div>
                     </div>
                     <div class="card" style="padding:16px 24px; margin-bottom:32px;">
@@ -977,7 +997,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4.76"></script>
+    <script src="app.js?v=4.77"></script>
     
     <!-- Service Worker Registration for PWA -->
     <script>

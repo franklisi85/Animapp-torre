@@ -443,7 +443,10 @@ th { background-color: #f8fafc; font-weight: 600; color: var(--text-muted); font
     border: 1px solid rgba(59,130,246,0.3); border-radius: var(--radius-sm);
     padding: 2px 6px; letter-spacing: 0.5px;
 }
-.delete-ev-btn { 
+.event-select-checkbox {
+    position: absolute; top: 4px; left: 4px; width: 13px; height: 13px; cursor: pointer; z-index: 2;
+}
+.delete-ev-btn {
     position: absolute; top: 4px; right: 4px; color: var(--text-muted); cursor: pointer; font-size: 14px!important;
 }
 .delete-ev-btn:hover { color: var(--danger); }
@@ -1065,6 +1068,16 @@ th { background-color: #f8fafc; font-weight: 600; color: var(--text-muted); font
 .doc-actions .btn-icon:hover {
     background: var(--primary);
     color: white;
+}
+
+.doc-select-checkbox {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 17px;
+    height: 17px;
+    z-index: 2;
+    cursor: pointer;
 }
 
 /* Delete button over doc text */
